@@ -1,0 +1,207 @@
+# Informe — Laboratorio 04 · Marcos normativos y gestión
+
+**Grupo:** 08 · **Integrantes:** Marco Cordoba — @MarcoCordoba · Thomas Koncurat — @Koncu1 · Lucas Leone — @LucasLeone · Geronimo Marquez — @Geromarquezz · Joaquin Moyano — @Joaco919 · **Fecha:** 16 de octubre de 2026
+
+---
+
+## 0. Declaración de uso de IA
+
+**¿El grupo usó asistentes de IA en este trabajo?** Sí.
+
+Usamos asistentes de IA (Claude, de Anthropic, y Antigravity, de Google) como herramientas de apoyo técnico y metodológico durante el desarrollo del laboratorio, con los siguientes fines:
+
+- **Revisión y consulta de marcos normativos**: contrastación de los controles del Anexo A de la norma internacional **ISO/IEC 27001:2022** (y su guía de implementación **ISO/IEC 27002:2022**), las funciones y categorías del **NIST Cybersecurity Framework (CSF 2.0)**, y su correspondencia con exigencias regulatorias (Ley 25.326 de Protección de Datos Personales, Ley 26.388 de Delitos Informáticos y estándar PCI-DSS v4.0).
+- **Estructuración y análisis de tratamiento de riesgos**: evaluación rigurosa de las cuatro respuestas frente al riesgo (*mitigar, transferir, aceptar, evitar*) aplicadas al caso de estudio de PhantomCorp, verificando que las decisiones respondan a criterios económicos, operativos y de gobierno corporativo reales.
+- **Redacción técnica**: asistencia en la formulación clara, estructurada y académica del informe.
+
+| Herramienta | Para qué se usó | Qué partes afectó | Cómo verificamos el resultado |
+|---|---|---|---|
+| Claude (Anthropic) y Antigravity (Google) | Consulta de taxonomía de controles ISO/IEC 27001:2022 y NIST CSF, estructuración de argumentos de gobierno de seguridad y redacción técnica | Sección 1 (Parte A) | Se verificó manualmente cada código y denominación de control contra el texto oficial de la norma ISO/IEC 27001:2022 (Anexo A) y el catálogo de NIST CSF 2.0. Se validó que las respuestas al riesgo no incurrieran en la simplificación de "mitigar todo", sino que reflejaran estrategias combinadas y justificadas. |
+
+El grupo declara que comprende en su totalidad los conceptos, justificaciones y mapeos volcados en esta entrega.
+
+---
+
+## 1. Parte A — Aplicación del marco
+
+### A.1 — Qué marco elegiste y por qué
+
+Para el análisis y gobierno de la seguridad en **PhantomCorp**, elegimos como marco rector la norma internacional **ISO/IEC 27001:2022** (*Information security, cybersecurity and privacy protection — Information security management systems — Requirements*), complementada en el mapeo operativo con el catálogo de directrices de **ISO/IEC 27002:2022** y cruzada referencialmente con las funciones del **NIST Cybersecurity Framework (CSF 2.0)**.
+
+#### Justificación de la elección
+
+1. **Naturaleza crítica de los activos y exposición regulatoria/contractual:**
+   PhantomCorp almacena y procesa información altamente sensible: **datos de identificación personal** (nombres, DNI) y **datos financieros transaccionales** (tarjetas de crédito). 
+   - En la República Argentina, el tratamiento de datos personales está tutelado por la **Ley 25.326** y las resoluciones de la Agencia de Acceso a la Información Pública (AAIP, e.g. Resolución 47/2018 sobre medidas de seguridad recomendadas), que exigen la adopción de medidas técnicas y organizativas para garantizar la confidencialidad e integridad.
+   - El almacenamiento de datos de titulares de tarjetas de pago somete a la organización a las exigencias contractuales de las marcas de tarjetas (**PCI-DSS v4.0**).
+   - A diferencia de NIST CSF —que es una guía voluntaria orientada primariamente a infraestructura crítica sin esquema de acreditación formal—, **ISO/IEC 27001 es un estándar internacional certificable por terceros independientes**. Obtener la certificación bajo ISO 27001 es un requisito contractual sine qua non para operar con pasarelas de pago, entidades financieras y clientes corporativos B2B.
+
+2. **Enfoque en Sistema de Gestión (SGSI) y Ciclo de Mejora Continua (PDCA):**
+   PhantomCorp presenta un estado de desgobierno absoluto: no tiene políticas de contraseñas, no tiene MFA y no cuenta con plan de respuesta a incidentes. El problema de PhantomCorp no se soluciona únicamente comprando herramientas tecnológicas aisladas, sino estableciendo un **Sistema de Gestión de la Seguridad de la Información (SGSI)** sustentado en el ciclo PDCA (*Plan-Do-Check-Act* / Planificar-Hacer-Verificar-Actuar):
+   - **Cláusulas 4 a 10 de ISO 27001:** obligan a definir el alcance organizacional, el compromiso de la alta dirección (liderazgo y asignación presupuestaria), la metodología formal de evaluación y tratamiento de riesgos (alineada con ISO 31000), auditorías internas periódicas y la revisión por la dirección.
+
+3. **Taxonomía moderna y adaptada a la operatoria híbrida (Anexo A versión 2022):**
+   La actualización de ISO/IEC 27001:2022 reestructuró los controles en **4 dominios temáticos integrales** (37 Controles Organizacionales, 8 de Personas, 14 Físicos y 34 Tecnológicos), introduciendo controles específicos que abordan con precisión quirúrgica las vulnerabilidades de PhantomCorp:
+   - Control A.5.34 para la privacidad de PII (alineado con ISO/IEC 27701).
+   - Control A.6.7 para la seguridad en el teletrabajo / trabajo remoto.
+   - Control A.8.5 para autenticación segura en arquitecturas web y remotas.
+   - Control A.5.24 para la planificación y respuesta estructurada ante incidentes.
+
+---
+
+### A.2 — Mapeo de debilidades del escenario a controles del marco
+
+A partir del escenario provisto, identificamos y mapeamos **cinco debilidades críticas** a los controles normativos correspondientes de ISO/IEC 27001:2022 (con su correlato en funciones/categorías de NIST CSF 2.0 para enriquecer la trazabilidad):
+
+```
++----------------------------------------------------------------------------------------------------+
+|                                    MAPEO DE DEBILIDADES                                            |
++----+---------------------------------------+-----------------------------+-------------------------+
+| #  | Debilidad del Escenario               | Control ISO/IEC 27001:2022  | Función / Cat. NIST CSF |
++----+---------------------------------------+-----------------------------+-------------------------+
+| 1  | Almacenamiento local de tarjetas,     | A.5.34 (Protección PII)     | PROTECT (PR.DS)         |
+|    | DNI y nombres en servidor público     | A.8.24 (Uso de criptografía)| IDENTIFY (ID.RA)        |
++----+---------------------------------------+-----------------------------+-------------------------+
+| 2  | Empleados con acceso remoto           | A.8.5 (Autenticación segura)| PROTECT (PR.AA / PR.AC) |
+|    | sin autenticación multifactor (MFA)   | A.6.7 (Trabajo remoto)      |                         |
++----+---------------------------------------+-----------------------------+-------------------------+
+| 3  | Inexistencia de política de           | A.5.17 (Info. autenticación)| PROTECT (PR.AA / PR.AC) |
+|    | contraseñas y gestión de credenciales | A.5.15 (Control de acceso)  |                         |
++----+---------------------------------------+-----------------------------+-------------------------+
+| 4  | Backups almacenados únicamente en un  | A.8.13 (Copias de seguridad)| PROTECT (PR.DS / PR.IP) |
+|    | disco físico local en la oficina      | A.7.10 (Medios almacenam.)  | RECOVER (RC.RP)         |
+|    |                                       | A.5.29 (Seg. en interrupción|                         |
++----+---------------------------------------+-----------------------------+-------------------------+
+| 5  | Ausencia de plan de respuesta a       | A.5.24 (Planif. incidentes) | RESPOND (RS.RP / RS.MA) |
+|    | incidentes y monitoreo de intrusiones | A.5.26 (Respuesta incident.)| DETECT (DE.AE / DE.CM)  |
+|    |                                       | A.5.28 (Recolec. evidencia) |                         |
++----+---------------------------------------+-----------------------------+-------------------------+
+```
+
+#### Detalle analítico por debilidad:
+
+1. **Debilidad 1: Almacenamiento local de datos de tarjetas de crédito y datos personales (nombres, DNI) en un servidor web público.**
+   - *Riesgo asociado:* Inyección SQL, vulnerabilidad de aplicación web o compromiso del sistema operativo que permita a un atacante externo exfiltrar la base de datos completa. La exposición de números de tarjeta (PAN) y códigos de seguridad (CVV) genera multas directas de adquirentes/marcas de tarjetas, clausura de procesamiento comercial, demandas por fraude de clientes y sanciones de la autoridad de protección de datos (AAIP) bajo la Ley 25.326.
+   - *Controles ISO/IEC 27001:2022:*
+     - **Control A.5.34 — Privacidad y protección de información de identificación personal (PII):** exige establecer directrices y medidas organizativas y técnicas para salvaguardar los datos personales según las leyes aplicables.
+     - **Control A.8.24 — Uso de criptografía:** define el deber de cifrar los datos sensibles tanto en tránsito (TLS 1.3) como en reposo (AES-256), con gestión segura de claves criptográficas.
+   - *Equivalencia NIST CSF 2.0:* Función **PROTECT**, Categoría **PR.DS** (*Data Security*), subcategorías `PR.DS-01` (protección de datos en reposo) y `PR.DS-02` (protección de datos en tránsito).
+
+2. **Debilidad 2: Empleados con acceso remoto y total ausencia de autenticación multifactor (MFA).**
+   - *Riesgo asociado:* Intrusión a la red interna mediante ataques de fuerza bruta, ingeniería social (spear-phishing), interceptación de tráfico o relleno de credenciales (*credential stuffing*) utilizando bases de datos filtradas en la web. Sin un segundo factor de autenticación, el compromiso de un único par usuario/contraseña otorga a un atacante acceso con privilegios de red privada, facilitando el reconocimiento interno y movimiento lateral.
+   - *Controles ISO/IEC 27001:2022:*
+     - **Control A.8.5 — Autenticación segura:** exige que los sistemas de autenticación verifiquen la identidad de los usuarios mediante mecanismos robustos acordes a la criticidad del activo, prescribiendo formalmente la autenticación multifactor para accesos remotos y administrativos.
+     - **Control A.6.7 — Trabajo remoto:** requiere implementar medidas de seguridad técnicas y organizativas para el acceso a la información corporativa fuera de las instalaciones físicas (dispositivos gestionados, canales cifrados VPN/Zero Trust).
+   - *Equivalencia NIST CSF 2.0:* Función **PROTECT**, Categoría **PR.AA** (*Identity Management, Authentication and Access Control*), subcategoría `PR.AA-03` (identidades verificadas con MFA para accesos externos y con privilegios).
+
+3. **Debilidad 3: Inexistencia de política de contraseñas.**
+   - *Riesgo asociado:* Elección de contraseñas triviales por parte de usuarios y administradores (`123456`, `Phantom2026!`), reutilización de contraseñas personales, falta de detección de credenciales previamente comprometidas y ausencia de almacenamiento seguro en los sistemas internos (e.g. almacenamiento en texto plano o con hashes débiles como MD5/SHA-1 sin salt), facilitando el descifrado masivo mediante tablas rainbow o ataques de diccionario.
+   - *Controles ISO/IEC 27001:2022:*
+     - **Control A.5.17 — Información de autenticación:** exige regular y parametrizar la creación, distribución, robustez y ciclo de vida de los secretos de autenticación.
+     - **Control A.5.15 — Control de acceso:** determina que el acceso a la información y recursos debe ser concedido y restringido bajo políticas claras de necesidad de saber (*need-to-know*) y mínimo privilegio.
+   - *Equivalencia NIST CSF 2.0:* Función **PROTECT**, Categoría **PR.AA**, subcategoría `PR.AA-01` (gestión del ciclo de vida de credenciales e información de autenticación).
+
+4. **Debilidad 4: Backups almacenados únicamente en un disco físico en la oficina.**
+   - *Riesgo asociado:* Pérdida irreversible de la información institucional y de clientes ante contingencias físicas (incendio, inundación, sobretensión eléctrica, robo o extravío del disco externo) o lógicas (infección por malware/ransomware que alcance volúmenes conectados localmente y destruya o cifre las copias). Al residir en el mismo dominio de falla físico que la oficina, la empresa carece de resiliencia operativa y capacidad de recuperación ante desastres (DRP).
+   - *Controles ISO/IEC 27001:2022:*
+     - **Control A.8.13 — Copias de seguridad de la información:** exige la realización sistemática de copias de respaldo de datos, software e imágenes de sistemas, probando periódicamente su restauración y manteniéndolas en ubicaciones remotas y medios aislados.
+     - **Control A.7.10 — Medios de almacenamiento:** requiere la protección física y lógica de los medios extraíbles contra acceso no autorizado, daño o robo.
+     - **Control A.5.29 — Seguridad de la información durante una interrupción:** establece que la organización debe planificar la continuidad de la seguridad para mantener la disponibilidad de los activos ante fallas mayores.
+   - *Equivalencia NIST CSF 2.0:* Función **PROTECT** (`PR.DS-11`: backups probados, aislados e inmutables) y Función **RECOVER**, Categoría **RC.RP** (`RC.RP-01`: ejecución de planes de recuperación).
+
+5. **Debilidad 5: Inexistencia de plan de respuesta a incidentes (IRP) ni capacidades de monitoreo.**
+   - *Riesgo asociado:* Tiempo de permanencia (*dwell time*) indefinido de intrusos dentro de la red corporativa sin ser detectados. Ante una intrusión evidente, la respuesta improvisada genera pánico operativo, apagado indebido de servidores con destrucción irrevocable de evidencia volátil en RAM (impidiendo el peritaje forense judicial), propagación descontrolada de la amenaza, incumplimiento del plazo legal de reporte de brechas de datos e indemnizaciones comerciales desproporcionadas.
+   - *Controles ISO/IEC 27001:2022:*
+     - **Control A.5.24 — Planificación y preparación de la gestión de incidentes de seguridad de la información:** obliga a la organización a documentar procesos, roles, cadenas de mando y canales de comunicación para responder ante eventos de seguridad.
+     - **Control A.5.26 — Respuesta a incidentes de seguridad de la información:** establece la ejecución coordinada de acciones de contención, erradicación y recuperación.
+     - **Control A.5.28 — Recolección de evidencia:** requiere identificar, recolectar, adquirir y preservar evidencia digital asegurando su cadena de custodia legalmente válida.
+   - *Equivalencia NIST CSF 2.0:* Función **RESPOND**, Categorías **RS.MA** (*Incident Management*) y **RS.AN** (*Incident Analysis*), y Función **DETECT**, Categoría **DE.AE** (*Anomalies and Events*).
+
+---
+
+### A.3 — Respuesta al riesgo elegida con justificación
+
+La gestión profesional del riesgo no consiste en "mitigar todo" con tecnología indiscriminada. Una organización con recursos finitos debe balancear el costo de los controles contra el valor del activo y el impacto financiero real. Frente a las debilidades analizadas, aplicamos y justificamos las cuatro estrategias fundamentales: **Evitar, Mitigar, Transferir y Aceptar**.
+
+```
++----------------------------------------------------------------------------------------------------+
+|                               ESTRATEGIAS DE RESPUESTA AL RIESGO                                   |
++----+--------------------------------------------+-----------------------+--------------------------+
+| #  | Escenario / Activo                         | Respuesta al Riesgo   | Mecanismo de Aplicación  |
++----+--------------------------------------------+-----------------------+--------------------------+
+| 1  | Datos de tarjetas de crédito en servidor   | EVITAR (Avoid)        | Tokenización externa     |
+|    |                                            | + TRANSFERIR (Transf.)| Pasarela PCI-DSS Nivel 1 |
++----+--------------------------------------------+-----------------------+--------------------------+
+| 2  | Empleados con acceso remoto sin MFA        | MITIGAR (Mitigate)    | Despliegue de MFA FIDO2  |
+|    |                                            |                       | y TOTP en VPN corporativa|
++----+--------------------------------------------+-----------------------+--------------------------+
+| 3  | Falta de política de contraseñas           | MITIGAR (Mitigate)    | Política NIST 800-63B    |
+|    |                                            |                       | y gestor de contraseñas  |
++----+--------------------------------------------+-----------------------+--------------------------+
+| 4  | Backups en disco físico único en oficina   | TRANSFERIR (Transfer) | Cloud Backup inmutable   |
+|    |                                            | + MITIGAR (Mitigate)  | Regla 3-2-1 con WORM/SLA |
++----+--------------------------------------------+-----------------------+--------------------------+
+| 5  | Brecha catastrófica / Daños financieros    | TRANSFERIR (Transfer) | Póliza de Ciberseguro    |
+|    | e improvisación operativa en incidentes    | + MITIGAR (Mitigate)  | IRP formal + Playbooks   |
++----+--------------------------------------------+-----------------------+--------------------------+
+| 6  | Indisponibilidad residual no crítica       | ACEPTAR (Accept)      | Tolerancia documentada   |
+|    | en servidor web fuera de horario pico      |                       | en análisis de BIA       |
++----+--------------------------------------------+-----------------------+--------------------------+
+```
+
+#### Justificaciones detalladas:
+
+#### 1. Datos de tarjetas de crédito de clientes: EVITAR (Avoid) y TRANSFERIR (Transfer)
+- **Decisión:** **EVITAR** completamente el almacenamiento, procesamiento y transmisión directa de números de tarjetas de crédito (PAN) y códigos de verificación (CVV) en los servidores propios de PhantomCorp. En su lugar, se **transfiere** la operatoria transaccional a un proveedor de servicios de pago (*Payment Service Provider* / PSP) certificado como **PCI-DSS Service Provider Level 1** (e.g. Stripe, MercadoPago o Checkout.com).
+- **Justificación:**
+  Intentar *mitigar* este riesgo internamente exigiría convertir la infraestructura de PhantomCorp en una fortaleza conforme a los más de 300 controles técnicos y físicos de PCI-DSS v4.0 (segmentación estricta de red, hardware HSM para cifrado de claves, escaneos trimestrales ASV, auditoría QSA externa anual), incurriendo en costos de implementación y mantenimiento que superan con creces el presupuesto operativo de la empresa.
+  Al integrar el servidor web mediante formularios encapsulados seguros (*Hosted Fields* o *iFrames tokenizados* provistos por el PSP), los datos de las tarjetas viajan directamente desde el navegador del cliente a los servidores del proveedor de pagos sin tocar la memoria, disco ni red de PhantomCorp. A cambio, PhantomCorp solo almacena un *token* pseudoaleatorio no reversible y no sensible. 
+  Esta estrategia **evita de raíz** la existencia del activo tóxico en los servidores propios, reduciendo el alcance de cumplimiento al cuestionario simplificado **PCI-DSS SAQ A**, eliminando el pasivo penal y civil por robo de tarjetas y transfiriendo el riesgo transaccional al procesador de pagos. Para los datos personales restantes (DNI y nombres), que sí deben conservarse por motivos fiscales y legales, se aplica mitigación técnica (cifrado en reposo con AES-256) y transferencia financiera complementaria mediante póliza de seguros.
+
+#### 2. Acceso remoto de empleados sin segundo factor: MITIGAR (Mitigate)
+- **Decisión:** **MITIGAR** mediante la imposición obligatoria de autenticación multifactor (MFA) para todas las conexiones remotas (VPN corporativa, paneles web administrativos, accesos SSH).
+- **Justificación:**
+  La empresa no puede *evitar* el acceso remoto porque el teletrabajo y la gestión descentralizada son indispensables para la continuidad del negocio; tampoco puede *aceptar* el riesgo, ya que el robo de credenciales es la puerta de entrada de más del 80% de los incidentes de intrusión y ransomware modernos.
+  La mitigación se implementa mediante llaves criptográficas físicas FIDO2/WebAuthn para personal con privilegios elevados y aplicaciones TOTP en dispositivos móviles (Google/Microsoft Authenticator bajo RFC 6238) para el resto del personal, prohibiendo taxativamente el uso de SMS o llamadas de voz debido a su vulnerabilidad probada frente a ataques de *SIM swapping* y clonación de líneas. El costo de licenciamiento y configuración de un proveedor de identidad centralizado (IdP como Keycloak u Okta) es ínfimo comparado con el valor de las pérdidas que previene (reduce en más de un 99% los ataques automatizados basados en credenciales según telemetría de CISA y Microsoft).
+
+#### 3. Inexistencia de política de contraseñas: MITIGAR (Mitigate)
+- **Decisión:** **MITIGAR** a través del diseño, promulgación formal y aplicación técnica forzada de una política corporativa de contraseñas alineada con el estándar **NIST SP 800-63B** (*Digital Identity Guidelines: Authentication and Lifecycle Management*).
+- **Justificación:**
+  El uso de secretos de autenticación es consustancial al acceso a sistemas, por lo que no se puede evitar. La respuesta técnica y organizativa consiste en:
+  1. Configurar una longitud mínima obligatoria de 14 caracteres, promoviendo el uso de frases de paso (*passphrases* memorables y con alta entropía).
+  2. Implementar verificación automatizada en tiempo de registro contra diccionarios de contraseñas previamente comprometidas (usando la API k-anonymity de *Have I Been Pwned* o listas locales de credenciales expuestas).
+  3. Eliminar la rotación periódica forzada arbitraria (e.g. cada 60 o 90 días), dado que la evidencia empírica demuestra que induce a los usuarios a introducir alteraciones predecibles (e.g. `Primavera2026!`), limitando el cambio forzado exclusivamente a incidentes confirmados de compromiso.
+  4. Proveer a todos los empleados un gestor corporativo de contraseñas (e.g. Bitwarden Enterprise) para generar y custodiar credenciales únicas por servicio en bóvedas cifradas de extremo a extremo.
+
+#### 4. Backups en disco físico único en la oficina: TRANSFERIR (Transfer) y MITIGAR (Mitigate)
+- **Decisión:** Estrategia combinada: **TRANSFERIR** la custodia física, durabilidad y contingencia geográfica contratando un servicio de almacenamiento en la nube (*Cloud Storage*), y **MITIGAR** el riesgo de indisponibilidad y ransomware aplicando una política de respaldo estructurada bajo la **regla 3-2-1**.
+- **Justificación:**
+  Mantener los respaldos en un único disco externo en la oficina presenta un punto único de falla (*Single Point of Failure* - SPOF) inaceptable. Construir un centro de datos secundario propio fuera de las instalaciones para albergar servidores de réplica sería financieramente inviable para PhantomCorp.
+  Por lo tanto, la empresa **transfiere contractualmente** la responsabilidad sobre la redundancia física y geográfica a un proveedor de nube pública (e.g. AWS S3 Glacier Flexible Retrieval / Azure Blob Storage):
+  - El contrato de servicio (SLA) garantiza una durabilidad del 99.999999999% (11 nueves) y disponibilidad del 99.9%, con compensaciones económicas explícitas en caso de incumplimiento.
+  - Como control de mitigación técnica complementario, las copias enviadas a la nube se configuran con **inmutabilidad de objetos** (*Object Lock / WORM - Write Once, Read Many*) durante un período de retención mínimo (e.g. 30 días) y cifrado del lado del cliente con claves gestionadas por PhantomCorp (AES-256). Esto asegura que, aun si un ransomware destruye los datos locales y compromete credenciales administrativas, las copias en la nube no pueden ser borradas ni sobreescritas por el atacante.
+
+#### 5. Ausencia de plan de respuesta a incidentes y contingencias mayores: MITIGAR (Mitigate) y TRANSFERIR (Transfer)
+- **Decisión:** **MITIGAR** la capacidad operativa de contención desarrollando un Plan de Respuesta a Incidentes (IRP), y **TRANSFERIR** el impacto financiero catastrófico derivado de una brecha mediante la contratación de una póliza de **Seguro contra Ciberriesgos (*Cyber Insurance*)**.
+- **Justificación:**
+  Bajo el postulado moderno de "asumir la brecha" (*assume breach*), ninguna organización puede garantizar una probabilidad de compromiso cero.
+  - La empresa **mitiga** los tiempos de detección y respuesta creando un plan formal de respuesta a incidentes con roles definidos (CSIRT interno, asesores legales, comunicación corporativa), procedimientos de preservación forense de evidencia volátil (respetando la cadena de custodia) y playbooks específicos ante ransomware, intrusión web y fuga de información.
+  - Sin embargo, las consecuencias económicas de una intrusión grave (honorarios de consultoras de respuesta a incidentes forenses, asesoría legal en litigios civiles, multas regulatorias y costos de notificación a miles de clientes) pueden causar la quiebra de la compañía. Para proteger su viabilidad económica, PhantomCorp **transfiere el impacto financiero residual** suscribiendo una póliza de ciberseguro que indemnice las pérdidas operativas, rescates extorsivos no evitables, peritajes forenses externos y reclamos de terceros.
+
+#### 6. Riesgo residual de indisponibilidad transitoria en el servidor web público: ACEPTAR (Accept)
+- **Decisión:** **ACEPTAR** formalmente el riesgo residual de indisponibilidad temporal no crítica (por ejemplo, tiempos de inactividad programados para mantenimiento o microcortes de conectividad inferiores a 15 minutos mensuales fuera de horario comercial).
+- **Justificación:**
+  Alcanzar una disponibilidad del 99.999% ("cinco nueves") requeriría diseñar una arquitectura redundante multirregión activa-activa en múltiples proveedores cloud con balanceadores de carga globales de tipo Anycast, cuyo costo superaría con creces los 10.000 USD mensuales. 
+  Dado que PhantomCorp no opera un servicio médico de soporte vital ni un sistema financiero en tiempo real, el impacto financiero de una interrupción menor de algunos minutos fuera de hora punta es despreciable frente al costo de mitigarla. Por tanto, la Alta Dirección aprueba, documenta y asume formalmente este riesgo residual en el Registro de Riesgos del SGSI, estableciendo un objetivo de disponibilidad realista acorde al Análisis de Impacto en el Negocio (BIA).
+
+---
+
+## 2. Parte B — Riesgo cuantitativo
+
+*(A completar durante el desarrollo de la Parte B: ranking por ALE, ROI del control #1 y justificación cuantitativa con `src/riesgo.py` y `riesgos.json`).*
+
+---
+
+## 3. Anexo — riesgos.json
+
+*(A incorporar durante la entrega de la Parte B).*
