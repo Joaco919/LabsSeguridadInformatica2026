@@ -13,20 +13,22 @@ import argparse, json, sys
 def ale(sle: float, aro: float) -> float:
     """Annualized Loss Expectancy = SLE (pérdida por evento) x ARO (eventos/año).
     Pista: una línea."""
-    # TODO
-    raise NotImplementedError("Completá ale()")
+    return sle * aro
 
 def roi_control(ale_antes: float, ale_despues: float, costo_anual: float) -> float:
     """ROI de un control = (pérdida evitada - costo) / costo.
     pérdida evitada = ale_antes - ale_despues. >0 significa que el control se paga."""
-    # TODO
-    raise NotImplementedError("Completá roi_control()")
+    # Con costo 0 el ROI no está definido: es una entrada inválida, no un control "infinitamente rentable".
+    if costo_anual <= 0:
+        raise ValueError("el costo anual del control debe ser mayor que 0")
+    return ((ale_antes - ale_despues) - costo_anual) / costo_anual
 
 def priorizar(riesgos: list) -> list:
     """Recibe una lista de dicts {nombre, sle, aro}, agrega su 'ale' y los devuelve
     ordenados por ALE descendente (el riesgo más costoso primero)."""
-    # TODO
-    raise NotImplementedError("Completá priorizar()")
+    # Se copia cada dict para no modificar la lista que recibe quien llama.
+    con_ale = [{**r, "ale": ale(r["sle"], r["aro"])} for r in riesgos]
+    return sorted(con_ale, key=lambda r: r["ale"], reverse=True)
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Riesgo cuantitativo (Lab 04).")
