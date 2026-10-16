@@ -110,13 +110,13 @@ El estudio del ataque de extensión de longitud y la génesis de HMAC deja una l
 
 ## Fuentes
 
-1. [PRIMARIA] Bellare, M., Canetti, R., & Krawczyk, H. (1996). Keying hash functions for message authentication. En N. Koblitz (Ed.), *Advances in Cryptology — CRYPTO '96* (LNCS 1109, pp. 1–15). Springer. https://doi.org/10.1007/3-540-68697-5_1 — **Arbitrada** (paper fundacional de HMAC en conferencia con revisión por pares).
-2. [PRIMARIA] Krawczyk, H., Bellare, M., & Canetti, R. (1997). *HMAC: Keyed-hashing for message authentication* (RFC 2104). Internet Engineering Task Force (IETF). https://www.rfc-editor.org/rfc/rfc2104 — **Primaria** (estándar oficial de Internet).
-3. [PRIMARIA] National Institute of Standards and Technology. (2008). *The Keyed-Hash Message Authentication Code (HMAC)* (FIPS PUB 198-1). U.S. Department of Commerce. https://doi.org/10.6028/NIST.FIPS.198-1 — **Primaria** (estándar federal estadounidense).
-4. [PRIMARIA] National Institute of Standards and Technology. (2015). *SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions* (FIPS PUB 202). U.S. Department of Commerce. https://doi.org/10.6028/NIST.FIPS.202 — **Primaria** (estándar oficial de funciones de hash por esponja).
-5. [ARBITRADA] Duong, T., & Rizzo, J. (2009). *Flickr's API signature forgery vulnerability* [Informe técnico]. VNSecurity Research. https://vndroid.files.wordpress.com/2009/11/flickr-api-signature-forgery.pdf — **Arbitrada** (análisis de vulnerabilidad en producción).
-6. [ARBITRADA] Merkle, R. C. (1989). A certified digital signature. En G. Brassard (Ed.), *Advances in Cryptology — CRYPTO '89* (LNCS 435, pp. 218–238). Springer. https://doi.org/10.1007/0-387-34805-0_21 — **Arbitrada** (paper fundacional de la construcción Merkle-Damgård).
-7. [ARBITRADA] Damgård, I. B. (1989). A design principle for hash functions. En G. Brassard (Ed.), *Advances in Cryptology — CRYPTO '89* (LNCS 435, pp. 416–427). Springer. https://doi.org/10.1007/0-387-34805-0_39 — **Arbitrada** (paper fundacional de la construcción Merkle-Damgård).
+1. Bellare, M., Canetti, R., & Krawczyk, H. (1996). Keying hash functions for message authentication. En N. Koblitz (Ed.), *Advances in Cryptology — CRYPTO '96* (LNCS 1109, pp. 1–15). Springer. https://doi.org/10.1007/3-540-68697-5_1 — **Arbitrada** (paper fundacional de HMAC en conferencia con revisión por pares).
+2. Krawczyk, H., Bellare, M., & Canetti, R. (1997). *HMAC: Keyed-hashing for message authentication* (RFC 2104). Internet Engineering Task Force (IETF). https://www.rfc-editor.org/rfc/rfc2104 — **Primaria** (estándar oficial de Internet).
+3. National Institute of Standards and Technology. (2008). *The Keyed-Hash Message Authentication Code (HMAC)* (FIPS PUB 198-1). U.S. Department of Commerce. https://doi.org/10.6028/NIST.FIPS.198-1 — **Primaria** (estándar federal estadounidense).
+4. National Institute of Standards and Technology. (2015). *SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions* (FIPS PUB 202). U.S. Department of Commerce. https://doi.org/10.6028/NIST.FIPS.202 — **Primaria** (estándar oficial de funciones de hash por esponja).
+5. Duong, T., & Rizzo, J. (2009). *Flickr's API signature forgery vulnerability* [Informe técnico]. Netifera. http://netifera.com/research/flickr_api_signature_forgery.pdf (sitio fuera de línea; copia archivada: https://web.archive.org/web/2010/http://netifera.com/research/flickr_api_signature_forgery.pdf) — **Primaria** (informe técnico de los propios investigadores que descubrieron la vulnerabilidad; sin revisión por pares).
+6. Merkle, R. C. (1989). A certified digital signature. En G. Brassard (Ed.), *Advances in Cryptology — CRYPTO '89* (LNCS 435, pp. 218–238). Springer. https://doi.org/10.1007/0-387-34805-0_21 — **Arbitrada** (paper fundacional de la construcción Merkle-Damgård).
+7. Damgård, I. B. (1989). A design principle for hash functions. En G. Brassard (Ed.), *Advances in Cryptology — CRYPTO '89* (LNCS 435, pp. 416–427). Springer. https://doi.org/10.1007/0-387-34805-0_39 — **Arbitrada** (paper fundacional de la construcción Merkle-Damgård).
 
 ---
 

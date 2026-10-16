@@ -195,7 +195,7 @@ if mac_calculado == mac_recibido:
     ejecutar_pago()
 ```
 
-Un atacante sin conocimiento de la clave simétrica envía mensajes con MACs fabricados y mide con alta resolución el tiempo transcurrido hasta recibir la respuesta de error HTTP 403 / "MAC inválido":
+Un atacante sin conocimiento de la clave simétrica envía mensajes con MACs fabricados y mide con alta resolución el tiempo transcurrido hasta recibir la respuesta de error HTTP 403 / "MAC inválido". Los tiempos que siguen son **valores ilustrativos**, no mediciones reales: lo que importa es que la diferencia existe y se puede detectar estadísticamente.
 
 1. **Deducción del primer byte:**
    El atacante envía 256 peticiones fijando el primer byte desde `0x00` hasta `0xFF` y rellenando los 31 bytes restantes con ceros.
