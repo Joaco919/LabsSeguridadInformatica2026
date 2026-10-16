@@ -17,6 +17,7 @@ Usamos asistentes de IA (Claude, de Anthropic, y Antigravity, de Google) como he
 | Herramienta | Para qué se usó | Qué partes afectó | Cómo verificamos el resultado |
 |---|---|---|---|
 | Claude (Anthropic) y Antigravity (Google) | Consulta de taxonomía de controles ISO/IEC 27001:2022 y NIST CSF, estructuración de argumentos de gobierno de seguridad y redacción técnica | Sección 1 (Parte A) | Se verificó manualmente cada código y denominación de control contra el texto oficial de la norma ISO/IEC 27001:2022 (Anexo A) y el catálogo de NIST CSF 2.0. Se validó que las respuestas al riesgo no incurrieran en la simplificación de "mitigar todo", sino que reflejaran estrategias combinadas y justificadas. |
+| Claude (Anthropic) | Revisión de la Parte A (corrección de categorías de NIST CSF que no existen en la versión 2.0, afirmaciones sin fuente y agregado de fuentes); implementación de `src/riesgo.py`; borrador de la Parte B y del mini-research. | Secciones 1, 2 y 3, `src/riesgo.py`, `riesgos.json` y `research.md` | Corrimos `src/verificar.py` (3/3 OK) y los ejemplos del enunciado (`20000.00` y `0.875`). Todos los números de la Parte B salen de correr `src/riesgo.py`, y los SLE/ARO son estimaciones que el grupo discutió y puede justificar. Abrimos cada fuente citada para confirmar que existe. |
 
 El grupo declara que comprende en su totalidad los conceptos, justificaciones y mapeos volcados en esta entrega.
 
@@ -34,7 +35,7 @@ Para el análisis y gobierno de la seguridad en **PhantomCorp**, elegimos como m
    PhantomCorp almacena y procesa información altamente sensible: **datos de identificación personal** (nombres, DNI) y **datos financieros transaccionales** (tarjetas de crédito). 
    - En la República Argentina, el tratamiento de datos personales está tutelado por la **Ley 25.326** y las resoluciones de la Agencia de Acceso a la Información Pública (AAIP, e.g. Resolución 47/2018 sobre medidas de seguridad recomendadas), que exigen la adopción de medidas técnicas y organizativas para garantizar la confidencialidad e integridad.
    - El almacenamiento de datos de titulares de tarjetas de pago somete a la organización a las exigencias contractuales de las marcas de tarjetas (**PCI-DSS v4.0**).
-   - A diferencia de NIST CSF —que es una guía voluntaria orientada primariamente a infraestructura crítica sin esquema de acreditación formal—, **ISO/IEC 27001 es un estándar internacional certificable por terceros independientes**. Obtener la certificación bajo ISO 27001 es un requisito contractual sine qua non para operar con pasarelas de pago, entidades financieras y clientes corporativos B2B.
+   - A diferencia de NIST CSF —un marco voluntario que nació para infraestructura crítica y que en su versión 2.0 se amplió a organizaciones de cualquier tipo, pero que no tiene un esquema de certificación formal [2]—, **ISO/IEC 27001 es un estándar internacional certificable por terceros independientes** [1]. Para una empresa que maneja datos de clientes, la certificación es una forma verificable de demostrar su nivel de seguridad ante bancos, procesadores de pago y clientes corporativos, que suelen pedirla o valorarla al contratar.
 
 2. **Enfoque en Sistema de Gestión (SGSI) y Ciclo de Mejora Continua (PDCA):**
    PhantomCorp presenta un estado de desgobierno absoluto: no tiene políticas de contraseñas, no tiene MFA y no cuenta con plan de respuesta a incidentes. El problema de PhantomCorp no se soluciona únicamente comprando herramientas tecnológicas aisladas, sino estableciendo un **Sistema de Gestión de la Seguridad de la Información (SGSI)** sustentado en el ciclo PDCA (*Plan-Do-Check-Act* / Planificar-Hacer-Verificar-Actuar):
@@ -62,17 +63,17 @@ A partir del escenario provisto, identificamos y mapeamos **cinco debilidades cr
 | 1  | Almacenamiento local de tarjetas,     | A.5.34 (Protección PII)     | PROTECT (PR.DS)         |
 |    | DNI y nombres en servidor público     | A.8.24 (Uso de criptografía)| IDENTIFY (ID.RA)        |
 +----+---------------------------------------+-----------------------------+-------------------------+
-| 2  | Empleados con acceso remoto           | A.8.5 (Autenticación segura)| PROTECT (PR.AA / PR.AC) |
+| 2  | Empleados con acceso remoto           | A.8.5 (Autenticación segura)| PROTECT (PR.AA)         |
 |    | sin autenticación multifactor (MFA)   | A.6.7 (Trabajo remoto)      |                         |
 +----+---------------------------------------+-----------------------------+-------------------------+
-| 3  | Inexistencia de política de           | A.5.17 (Info. autenticación)| PROTECT (PR.AA / PR.AC) |
+| 3  | Inexistencia de política de           | A.5.17 (Info. autenticación)| PROTECT (PR.AA)         |
 |    | contraseñas y gestión de credenciales | A.5.15 (Control de acceso)  |                         |
 +----+---------------------------------------+-----------------------------+-------------------------+
-| 4  | Backups almacenados únicamente en un  | A.8.13 (Copias de seguridad)| PROTECT (PR.DS / PR.IP) |
+| 4  | Backups almacenados únicamente en un  | A.8.13 (Copias de seguridad)| PROTECT (PR.DS)         |
 |    | disco físico local en la oficina      | A.7.10 (Medios almacenam.)  | RECOVER (RC.RP)         |
 |    |                                       | A.5.29 (Seg. en interrupción|                         |
 +----+---------------------------------------+-----------------------------+-------------------------+
-| 5  | Ausencia de plan de respuesta a       | A.5.24 (Planif. incidentes) | RESPOND (RS.RP / RS.MA) |
+| 5  | Ausencia de plan de respuesta a       | A.5.24 (Planif. incidentes) | RESPOND (RS.MA / RS.AN) |
 |    | incidentes y monitoreo de intrusiones | A.5.26 (Respuesta incident.)| DETECT (DE.AE / DE.CM)  |
 |    |                                       | A.5.28 (Recolec. evidencia) |                         |
 +----+---------------------------------------+-----------------------------+-------------------------+
@@ -90,7 +91,7 @@ A partir del escenario provisto, identificamos y mapeamos **cinco debilidades cr
 2. **Debilidad 2: Empleados con acceso remoto y total ausencia de autenticación multifactor (MFA).**
    - *Riesgo asociado:* Intrusión a la red interna mediante ataques de fuerza bruta, ingeniería social (spear-phishing), interceptación de tráfico o relleno de credenciales (*credential stuffing*) utilizando bases de datos filtradas en la web. Sin un segundo factor de autenticación, el compromiso de un único par usuario/contraseña otorga a un atacante acceso con privilegios de red privada, facilitando el reconocimiento interno y movimiento lateral.
    - *Controles ISO/IEC 27001:2022:*
-     - **Control A.8.5 — Autenticación segura:** exige que los sistemas de autenticación verifiquen la identidad de los usuarios mediante mecanismos robustos acordes a la criticidad del activo, prescribiendo formalmente la autenticación multifactor para accesos remotos y administrativos.
+     - **Control A.8.5 — Autenticación segura:** exige implementar tecnologías y procedimientos de autenticación segura según las restricciones de acceso a la información. La guía de implementación (ISO/IEC 27002:2022) recomienda autenticación multifactor cuando se trata de información o sistemas críticos, como los accesos remotos y administrativos.
      - **Control A.6.7 — Trabajo remoto:** requiere implementar medidas de seguridad técnicas y organizativas para el acceso a la información corporativa fuera de las instalaciones físicas (dispositivos gestionados, canales cifrados VPN/Zero Trust).
    - *Equivalencia NIST CSF 2.0:* Función **PROTECT**, Categoría **PR.AA** (*Identity Management, Authentication and Access Control*), subcategoría `PR.AA-03` (identidades verificadas con MFA para accesos externos y con privilegios).
 
@@ -154,15 +155,15 @@ La gestión profesional del riesgo no consiste en "mitigar todo" con tecnología
 #### 1. Datos de tarjetas de crédito de clientes: EVITAR (Avoid) y TRANSFERIR (Transfer)
 - **Decisión:** **EVITAR** completamente el almacenamiento, procesamiento y transmisión directa de números de tarjetas de crédito (PAN) y códigos de verificación (CVV) en los servidores propios de PhantomCorp. En su lugar, se **transfiere** la operatoria transaccional a un proveedor de servicios de pago (*Payment Service Provider* / PSP) certificado como **PCI-DSS Service Provider Level 1** (e.g. Stripe, MercadoPago o Checkout.com).
 - **Justificación:**
-  Intentar *mitigar* este riesgo internamente exigiría convertir la infraestructura de PhantomCorp en una fortaleza conforme a los más de 300 controles técnicos y físicos de PCI-DSS v4.0 (segmentación estricta de red, hardware HSM para cifrado de claves, escaneos trimestrales ASV, auditoría QSA externa anual), incurriendo en costos de implementación y mantenimiento que superan con creces el presupuesto operativo de la empresa.
+  Intentar *mitigar* este riesgo internamente exigiría convertir la infraestructura de PhantomCorp en una fortaleza conforme a los cientos de requisitos técnicos y físicos de PCI-DSS v4.0 [3] (segmentación estricta de red, hardware HSM para cifrado de claves, escaneos trimestrales ASV, auditoría QSA externa anual), incurriendo en costos de implementación y mantenimiento que superan con creces el presupuesto operativo de la empresa.
   Al integrar el servidor web mediante formularios encapsulados seguros (*Hosted Fields* o *iFrames tokenizados* provistos por el PSP), los datos de las tarjetas viajan directamente desde el navegador del cliente a los servidores del proveedor de pagos sin tocar la memoria, disco ni red de PhantomCorp. A cambio, PhantomCorp solo almacena un *token* pseudoaleatorio no reversible y no sensible. 
   Esta estrategia **evita de raíz** la existencia del activo tóxico en los servidores propios, reduciendo el alcance de cumplimiento al cuestionario simplificado **PCI-DSS SAQ A**, eliminando el pasivo penal y civil por robo de tarjetas y transfiriendo el riesgo transaccional al procesador de pagos. Para los datos personales restantes (DNI y nombres), que sí deben conservarse por motivos fiscales y legales, se aplica mitigación técnica (cifrado en reposo con AES-256) y transferencia financiera complementaria mediante póliza de seguros.
 
 #### 2. Acceso remoto de empleados sin segundo factor: MITIGAR (Mitigate)
 - **Decisión:** **MITIGAR** mediante la imposición obligatoria de autenticación multifactor (MFA) para todas las conexiones remotas (VPN corporativa, paneles web administrativos, accesos SSH).
 - **Justificación:**
-  La empresa no puede *evitar* el acceso remoto porque el teletrabajo y la gestión descentralizada son indispensables para la continuidad del negocio; tampoco puede *aceptar* el riesgo, ya que el robo de credenciales es la puerta de entrada de más del 80% de los incidentes de intrusión y ransomware modernos.
-  La mitigación se implementa mediante llaves criptográficas físicas FIDO2/WebAuthn para personal con privilegios elevados y aplicaciones TOTP en dispositivos móviles (Google/Microsoft Authenticator bajo RFC 6238) para el resto del personal, prohibiendo taxativamente el uso de SMS o llamadas de voz debido a su vulnerabilidad probada frente a ataques de *SIM swapping* y clonación de líneas. El costo de licenciamiento y configuración de un proveedor de identidad centralizado (IdP como Keycloak u Okta) es ínfimo comparado con el valor de las pérdidas que previene (reduce en más de un 99% los ataques automatizados basados en credenciales según telemetría de CISA y Microsoft).
+  La empresa no puede *evitar* el acceso remoto porque el teletrabajo y la gestión descentralizada son indispensables para la continuidad del negocio; tampoco puede *aceptar* el riesgo, ya que las credenciales robadas o débiles son una de las vías de entrada más comunes en intrusiones y ransomware.
+  La mitigación se implementa mediante llaves criptográficas físicas FIDO2/WebAuthn para personal con privilegios elevados y aplicaciones TOTP en dispositivos móviles (Google/Microsoft Authenticator bajo RFC 6238) para el resto del personal, prohibiendo taxativamente el uso de SMS o llamadas de voz debido a su vulnerabilidad probada frente a ataques de *SIM swapping* y clonación de líneas. El costo de licenciamiento y configuración de un proveedor de identidad centralizado (IdP como Keycloak u Okta) es ínfimo comparado con el valor de las pérdidas que previene: Microsoft informó que activar MFA bloquea más del 99,9 % de los ataques de compromiso de cuentas que observa [4].
 
 #### 3. Inexistencia de política de contraseñas: MITIGAR (Mitigate)
 - **Decisión:** **MITIGAR** a través del diseño, promulgación formal y aplicación técnica forzada de una política corporativa de contraseñas alineada con el estándar **NIST SP 800-63B** (*Digital Identity Guidelines: Authentication and Lifecycle Management*).
@@ -178,7 +179,7 @@ La gestión profesional del riesgo no consiste en "mitigar todo" con tecnología
 - **Justificación:**
   Mantener los respaldos en un único disco externo en la oficina presenta un punto único de falla (*Single Point of Failure* - SPOF) inaceptable. Construir un centro de datos secundario propio fuera de las instalaciones para albergar servidores de réplica sería financieramente inviable para PhantomCorp.
   Por lo tanto, la empresa **transfiere contractualmente** la responsabilidad sobre la redundancia física y geográfica a un proveedor de nube pública (e.g. AWS S3 Glacier Flexible Retrieval / Azure Blob Storage):
-  - El contrato de servicio (SLA) garantiza una durabilidad del 99.999999999% (11 nueves) y disponibilidad del 99.9%, con compensaciones económicas explícitas en caso de incumplimiento.
+  - El proveedor diseña el almacenamiento para una durabilidad del 99,999999999 % (11 nueves), y el contrato de servicio (SLA) fija un nivel de disponibilidad con créditos económicos si no se cumple [5].
   - Como control de mitigación técnica complementario, las copias enviadas a la nube se configuran con **inmutabilidad de objetos** (*Object Lock / WORM - Write Once, Read Many*) durante un período de retención mínimo (e.g. 30 días) y cifrado del lado del cliente con claves gestionadas por PhantomCorp (AES-256). Esto asegura que, aun si un ransomware destruye los datos locales y compromete credenciales administrativas, las copias en la nube no pueden ser borradas ni sobreescritas por el atacante.
 
 #### 5. Ausencia de plan de respuesta a incidentes y contingencias mayores: MITIGAR (Mitigate) y TRANSFERIR (Transfer)
@@ -193,6 +194,16 @@ La gestión profesional del riesgo no consiste en "mitigar todo" con tecnología
 - **Justificación:**
   Alcanzar una disponibilidad del 99.999% ("cinco nueves") requeriría diseñar una arquitectura redundante multirregión activa-activa en múltiples proveedores cloud con balanceadores de carga globales de tipo Anycast, cuyo costo superaría con creces los 10.000 USD mensuales. 
   Dado que PhantomCorp no opera un servicio médico de soporte vital ni un sistema financiero en tiempo real, el impacto financiero de una interrupción menor de algunos minutos fuera de hora punta es despreciable frente al costo de mitigarla. Por tanto, la Alta Dirección aprueba, documenta y asume formalmente este riesgo residual en el Registro de Riesgos del SGSI, estableciendo un objetivo de disponibilidad realista acorde al Análisis de Impacto en el Negocio (BIA).
+
+### Fuentes (Parte A)
+
+1. International Organization for Standardization. (2022). *ISO/IEC 27001:2022 — Information security, cybersecurity and privacy protection — Information security management systems — Requirements*. https://www.iso.org/standard/27001 — **Primaria** (norma).
+2. National Institute of Standards and Technology. (2024). *The NIST Cybersecurity Framework (CSF) 2.0* (NIST CSWP 29). https://doi.org/10.6028/NIST.CSWP.29 — **Primaria**.
+3. PCI Security Standards Council. (2022). *Payment Card Industry Data Security Standard v4.0* [Biblioteca de documentos]. https://www.pcisecuritystandards.org/document_library/ — **Primaria**.
+4. Weinert, A. (2019, 20 de agosto). One simple action you can take to prevent 99.9 percent of attacks on your accounts. *Microsoft Security Blog*. https://www.microsoft.com/en-us/security/blog/2019/08/20/one-simple-action-you-can-take-to-prevent-99-9-percent-of-account-attacks/ — **Primaria** (datos del fabricante).
+5. Amazon Web Services. (s. f.). *Amazon S3 Service Level Agreement*. https://aws.amazon.com/s3/sla/ — **Primaria**.
+6. Argentina. (2000). *Ley 25.326 de Protección de los Datos Personales*. https://www.argentina.gob.ar/normativa/nacional/ley-25326-64790 — **Primaria**.
+7. Agencia de Acceso a la Información Pública. (2018). *Resolución 47/2018: Medidas de seguridad recomendadas para el tratamiento y conservación de los datos personales*. https://www.argentina.gob.ar/normativa/nacional/resoluci%C3%B3n-47-2018-310997 — **Primaria**.
 
 ---
 
