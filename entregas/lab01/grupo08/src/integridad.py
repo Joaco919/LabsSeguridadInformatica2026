@@ -182,16 +182,32 @@ def generar_manifiesto(directorio: Path, salida: Path) -> dict[str, str]:
           inserción, así que esto alcanza.
         · Reusá `sha256_archivo()`. No reescribas el bucle de lectura.
     """
-    # ----------------------------------------------------------------------
-    # TODO 1: implementar el recorrido y la construcción del manifiesto.
-    #         Borrá el `raise` de abajo y escribí tu código.
-    # ----------------------------------------------------------------------
-    raise NotImplementedError(
-        "TODO 1 de 4 — generar_manifiesto() sin implementar.\n"
-        "  Qué falta: recorrer el directorio recursivamente y devolver el\n"
-        "  diccionario {ruta_relativa_posix: digest_sha256}, ordenado por clave.\n"
-        "  Leé el docstring de esta función: están los requisitos y las pistas."
-    )
+    manifiesto: dict[str, str] = {}
+    for ruta in _archivos_del_directorio(directorio, excluir=salida):
+        relativa = ruta.relative_to(directorio).as_posix()
+        manifiesto[relativa] = sha256_archivo(ruta)
+    return dict(sorted(manifiesto.items()))
+
+
+def _archivos_del_directorio(directorio: Path, excluir: Path) -> list[Path]:
+    """Devuelve los archivos regulares bajo `directorio`, sin `excluir`.
+
+    Se comparte entre `generar` y `verificar` para que ambos vean exactamente
+    el mismo conjunto de archivos: si recorrieran distinto, `verificar`
+    reportaría falsos NUEVO o FALTANTE.
+
+    Los enlaces simbólicos se ignoran: seguirlos permitiría que el manifiesto
+    termine hasheando archivos fuera del directorio base (o entre en un ciclo).
+    """
+    excluido = excluir.resolve()
+    archivos = []
+    for ruta in directorio.rglob("*"):
+        if ruta.is_symlink() or not ruta.is_file():
+            continue
+        if ruta.resolve() == excluido:
+            continue
+        archivos.append(ruta)
+    return archivos
 
 
 # ==========================================================================
@@ -252,16 +268,29 @@ def verificar_manifiesto(
           Un consumidor que tiene que hacer `.get(clave, [])` es un consumidor
           al que le pasaste un contrato flojo.
     """
-    # ----------------------------------------------------------------------
-    # TODO 2: implementar la clasificación en OK / MODIFICADO / FALTANTE / NUEVO.
-    #         Borrá el `raise` de abajo y escribí tu código.
-    # ----------------------------------------------------------------------
-    raise NotImplementedError(
-        "TODO 2 de 4 — verificar_manifiesto() sin implementar.\n"
-        "  Qué falta: comparar el directorio contra el manifiesto y devolver\n"
-        "  el diccionario con las cuatro categorías OK/MODIFICADO/FALTANTE/NUEVO.\n"
-        "  Leé el docstring de esta función: está la estructura exacta esperada."
-    )
+    del_disco = {
+        ruta.relative_to(directorio).as_posix(): ruta
+        for ruta in _archivos_del_directorio(directorio, excluir=ruta_manifiesto)
+    }
+    rutas_disco = set(del_disco)
+    rutas_manifiesto = set(manifiesto)
+
+    resultado: dict[str, list[str]] = {
+        ESTADO_OK: [],
+        ESTADO_MODIFICADO: [],
+        ESTADO_FALTANTE: sorted(rutas_manifiesto - rutas_disco),
+        ESTADO_NUEVO: sorted(rutas_disco - rutas_manifiesto),
+    }
+
+    for relativa in sorted(rutas_disco & rutas_manifiesto):
+        # El digest registrado se normaliza a minúscula: un manifiesto editado
+        # a mano con hex en mayúscula no debe dar un falso MODIFICADO.
+        if sha256_archivo(del_disco[relativa]) == str(manifiesto[relativa]).lower():
+            resultado[ESTADO_OK].append(relativa)
+        else:
+            resultado[ESTADO_MODIFICADO].append(relativa)
+
+    return resultado
 
 
 # ==========================================================================
@@ -310,17 +339,13 @@ def distancia_hamming_bits(digest_a: bytes, digest_b: bytes) -> int:
         · `int.bit_count()` cuenta los bits en 1 de un entero (Python 3.10+).
           Si estás en una versión anterior: `bin(n).count("1")`.
     """
-    # ----------------------------------------------------------------------
-    # TODO 3: implementar la distancia de Hamming EN BITS.
-    #         Borrá el `raise` de abajo y escribí tu código.
-    # ----------------------------------------------------------------------
-    raise NotImplementedError(
-        "TODO 3 de 4 — distancia_hamming_bits() sin implementar.\n"
-        "  Qué falta: contar en cuántos BITS (no caracteres hex) difieren\n"
-        "  los dos digests recibidos como bytes crudos.\n"
-        "  Leé el docstring de esta función: la advertencia sobre bits vs. hex\n"
-        "  es el punto del ejercicio."
-    )
+    if len(digest_a) != len(digest_b):
+        raise ValueError(
+            f"los digests tienen distinto largo ({len(digest_a)} y "
+            f"{len(digest_b)} bytes): la distancia de Hamming no está definida."
+        )
+    # XOR byte a byte: cada bit en 1 marca una posición donde difieren.
+    return sum((byte_a ^ byte_b).bit_count() for byte_a, byte_b in zip(digest_a, digest_b))
 
 
 # ==========================================================================
@@ -370,18 +395,16 @@ def calcular_mac(clave: bytes, mensaje: bytes, tag_esperado: str | None = None) 
           y dio mal" son cosas distintas, y confundirlas en un sistema de
           seguridad es exactamente cómo se construye un falso negativo.
     """
-    # ----------------------------------------------------------------------
-    # TODO 4: implementar el cálculo del HMAC-SHA256 y la verificación
-    #         en tiempo constante.
-    #         Borrá el `raise` de abajo y escribí tu código.
-    # ----------------------------------------------------------------------
-    raise NotImplementedError(
-        "TODO 4 de 4 — calcular_mac() sin implementar.\n"
-        "  Qué falta: calcular el HMAC-SHA256 del mensaje con la clave y,\n"
-        "  si se pasó --verificar, comparar contra el tag esperado usando\n"
-        "  hmac.compare_digest().\n"
-        "  Leé el docstring de esta función: la comparación con == está prohibida."
-    )
+    tag = hmac.new(clave, mensaje, hashlib.sha256).hexdigest()
+
+    if tag_esperado is None:
+        return tag, None
+
+    # compare_digest sobre bytes: con str lanza TypeError si el tag recibido
+    # trae caracteres no ASCII, y eso es entrada del atacante. Se normaliza a
+    # minúscula porque hexdigest() siempre devuelve minúscula.
+    recibido = tag_esperado.strip().lower().encode("utf-8")
+    return tag, hmac.compare_digest(tag.encode("ascii"), recibido)
 
 
 # ==========================================================================
