@@ -198,10 +198,102 @@ La gestión profesional del riesgo no consiste en "mitigar todo" con tecnología
 
 ## 2. Parte B — Riesgo cuantitativo
 
-*(A completar durante el desarrollo de la Parte B: ranking por ALE, ROI del control #1 y justificación cuantitativa con `src/riesgo.py` y `riesgos.json`).*
+Cargamos en `riesgos.json` cinco riesgos del escenario de la Parte A (ver Anexo). Los montos están en dólares y son **estimaciones del grupo**, no datos reales de PhantomCorp: el SLE (*Single Loss Expectancy*) es lo que cuesta un evento y el ARO (*Annualized Rate of Occurrence*) cuántas veces esperamos que ocurra por año. El ALE (*Annualized Loss Expectancy*) es `SLE × ARO`.
+
+Criterios que usamos para estimar:
+
+- **Robo de la base de clientes** (SLE 250.000, ARO 0,3): incluye respuesta forense, notificación a clientes, asesoría legal, multas de las marcas de tarjetas por exponer datos de pago y sanciones de la AAIP. Un ARO de 0,3 (un evento cada ~3 años) refleja un servidor web público sin monitoreo.
+- **Ransomware** (SLE 120.000, ARO 0,25): días de operación detenida más la recuperación. Es alto porque el único backup está en un disco conectado en la oficina y probablemente también quede cifrado.
+- **Compromiso de una cuenta remota** (SLE 40.000, ARO 0,5): sin MFA, una contraseña filtrada o adivinada alcanza. Es el evento más frecuente, pero acá contamos solo el daño directo del acceso.
+- **Caída del servidor web** (SLE 1.500, ARO 4): unas horas sin ventas online, varias veces por año.
+- **Pérdida del disco de backup** (SLE 60.000, ARO 0,05): incendio, robo o falla del disco; si coincide con una pérdida de los datos originales, no hay de dónde recuperar.
+
+### B.1 — Ranking por ALE
+
+```
+$ python src/riesgo.py priorizar --archivo riesgos.json
+      75000.00  Robo de la base de clientes (nombres, DNI y tarjetas) desde el servidor web
+      30000.00  Ransomware que cifra servidores y el disco de backup conectado
+      20000.00  Compromiso de una cuenta de acceso remoto por credenciales robadas (sin MFA)
+       6000.00  Caida del servidor web publico por fallas o mantenimiento (pocas horas)
+       3000.00  Perdida del disco de backup de la oficina (robo, incendio o falla)
+```
+
+**Dónde coincide con nuestra intuición:** que el robo de la base de clientes quede primero. Combina el activo más sensible (tarjetas y DNI) con el punto más expuesto (un servidor público), y es lo que la Parte A ya marcaba como prioridad.
+
+**Dónde no coincide:**
+
+1. **El disco de backup quedó último**, y nuestra intuición lo ponía alto, porque "perder todos los datos" suena catastrófico. El ALE lo baja porque el evento es raro (ARO 0,05). Pero el número esconde algo: ese disco es también lo que haría falta para recuperarse del ransomware (#2). Su valor real no está en su propia fila sino en cuánto reduce el SLE de otro riesgo. El ALE trata cada riesgo como independiente y no ve esas dependencias.
+2. **El compromiso de cuenta remota quedó tercero**, y para nosotros es el más urgente: es el más probable de todos y, sobre todo, es la **puerta de entrada** de los dos primeros. Un atacante que entra con una cuenta remota es quien después roba la base o despliega el ransomware. El ranking le asigna solo el daño directo y subestima su papel como causa.
+3. **La caída del servidor web** tiene un ALE mayor que la pérdida del disco (6.000 contra 3.000) aunque intuitivamente es un problema menor. Pasa porque ocurre seguido: muchos eventos chicos suman más que uno grande y raro.
+
+La conclusión es que el ranking por ALE ordena bien qué riesgo cuesta más en promedio, pero no reemplaza el análisis: hay que mirar qué riesgos habilitan a otros y qué tan seguros estamos de cada estimación.
+
+### B.2 — Control para el riesgo #1 y su ROI
+
+**Control propuesto:** el mismo que elegimos en la Parte A, más un refuerzo del servidor:
+
+1. **Tokenizar los pagos con un proveedor certificado PCI-DSS** (formularios alojados por el proveedor): PhantomCorp deja de guardar números de tarjeta. Esto **baja el SLE**, porque una filtración ya no expone datos de pago; quedan nombres y DNI, que se cifran en reposo.
+2. **WAF delante del servidor web, parcheo mensual y escaneo de vulnerabilidades**: esto **baja el ARO**, porque se cierran las vías de entrada más comunes.
+
+**Estimaciones:**
+
+| | Antes | Después | Por qué |
+|---|---:|---:|---|
+| SLE | 250.000 | 80.000 | Sin tarjetas, desaparecen las multas de las marcas y el fraude; quedan forense, notificación y AAIP por los datos personales. |
+| ARO | 0,3 | 0,15 | WAF y parcheo reducen a la mitad la probabilidad de una intrusión exitosa. |
+| ALE | 75.000 | 12.000 | |
+
+**Costo anual del control:** 15.000 USD (comisiones adicionales del proveedor de pagos, integración amortizada, WAF administrado y escaneos).
+
+```
+$ python src/riesgo.py ale --sle 80000 --aro 0.15
+12000.00
+
+$ python src/riesgo.py roi --antes 75000 --despues 12000 --costo 15000
+3.200
+```
+
+ROI = (75.000 − 12.000 − 15.000) / 15.000 = **3,2**. Por cada dólar invertido, el control evita 3,2 dólares de pérdida esperada además de pagarse a sí mismo. **Conviene.**
+
+Como nuestras estimaciones de ARO pueden estar infladas, probamos un escenario pesimista para el control: que el riesgo sea tres veces menos frecuente de lo que supusimos (ARO 0,1 antes y 0,05 después):
+
+```
+$ python src/riesgo.py ale --sle 250000 --aro 0.1
+25000.00
+$ python src/riesgo.py ale --sle 80000 --aro 0.05
+4000.00
+$ python src/riesgo.py roi --antes 25000 --despues 4000 --costo 15000
+0.400
+```
+
+Aun así el ROI sigue siendo positivo (0,4). La decisión no depende de que nuestra estimación sea exacta, y eso la hace más sólida.
+
+### B.3 — Un riesgo para aceptar (y uno para transferir)
+
+**Aceptar: la caída breve del servidor web (ALE 6.000).** Mitigarlo en serio significa alta disponibilidad: servidores redundantes en más de una región con balanceo de carga, que estimamos en unos 10.000 USD por mes (120.000 por año). Aun suponiendo que eso bajara el ALE de 6.000 a 1.000:
+
+```
+$ python src/riesgo.py roi --antes 6000 --despues 1000 --costo 120000
+-0.958
+```
+
+El ROI es **−0,96**: se gastarían 120.000 por año para evitar 5.000 de pérdida. Lo correcto es **aceptar** el riesgo, documentarlo en el registro de riesgos con la aprobación de la dirección y fijar un objetivo de disponibilidad realista, como dijimos en la Parte A (respuesta #6). Esto solo vale mientras el servidor no sea crítico: si PhantomCorp pasara a vender principalmente online, el SLE subiría y habría que recalcular.
+
+**Transferir: el impacto residual del ransomware y de una brecha grave.** Aun con controles, un evento grave sigue siendo posible y su costo puede superar lo que la empresa puede absorber. Para ese residuo corresponde **transferir** con una póliza de ciberseguro: se paga una prima fija y conocida a cambio de no cargar con una pérdida grande e incierta. No reemplaza a los controles (las aseguradoras suelen exigir MFA y backups como condición), pero cubre lo que los controles no eliminan.
 
 ---
 
 ## 3. Anexo — riesgos.json
 
-*(A incorporar durante la entrega de la Parte B).*
+```json
+[
+  {"nombre": "Robo de la base de clientes (nombres, DNI y tarjetas) desde el servidor web", "sle": 250000, "aro": 0.3},
+  {"nombre": "Ransomware que cifra servidores y el disco de backup conectado", "sle": 120000, "aro": 0.25},
+  {"nombre": "Compromiso de una cuenta de acceso remoto por credenciales robadas (sin MFA)", "sle": 40000, "aro": 0.5},
+  {"nombre": "Caida del servidor web publico por fallas o mantenimiento (pocas horas)", "sle": 1500, "aro": 4},
+  {"nombre": "Perdida del disco de backup de la oficina (robo, incendio o falla)", "sle": 60000, "aro": 0.05}
+]
+```
+
+Los nombres van sin tildes a propósito: `riesgo.py` abre el archivo con `open()` sin indicar codificación, y en Windows eso usa cp1252 y desfigura los caracteres UTF-8. Para no tocar la parte del esqueleto que no era un TODO, preferimos un JSON en ASCII.
