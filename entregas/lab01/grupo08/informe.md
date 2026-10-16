@@ -8,8 +8,8 @@
 |---|---|
 | **Grupo** | 08 |
 | **Caso asignado (Parte A)** | Caso 2 — Target (brecha de datos de tarjetas), 2013 |
-| **Tema del mini-research** | |
-| **Fecha de entrega** | |
+| **Tema del mini-research** | Tema 4 — Criptografía post-cuántica |
+| **Fecha de entrega** | Octubre de 2026 |
 
 ### Integrantes
 
@@ -574,22 +574,39 @@ FIPS-140.
 
 ## Dificultades encontradas
 
-*Qué les costó, dónde se trabaron, qué decidieron y por qué. Esta sección se
-lee y suma. No es relleno: es donde se ve si entendieron el problema.*
+- **Parte A — separar gravedad de propiedad violada.** El primer borrador
+  marcaba integridad como violada porque el malware se instaló en los POS.
+  Lo discutimos: lo alterado fue el software de las terminales, no el dato
+  de tarjeta, que es el activo principal. Terminamos distinguiendo el activo
+  (track data) del medio (las terminales) y justificándolo en A.3.
+- **Parte A — fuentes.** Muchas notas periodísticas repiten cifras sin
+  citar de dónde salen. Usamos como fuente principal el informe *kill chain*
+  del Senado y los comunicados de Target, y dejamos a Krebs y Bloomberg solo
+  para hechos que esas fuentes no cubren.
+- **Parte B — excluir el manifiesto.** Cuando el manifiesto queda dentro
+  del directorio recorrido, `verificar` lo reportaba como `NUEVO`. Lo
+  resolvimos comparando rutas con `Path.resolve()`, que normaliza rutas
+  relativas y `..`.
+- **Parte B — bits contra hex.** La primera idea fue comparar las cadenas
+  hexadecimales carácter por carácter; daba números cercanos a 60 de 64, que
+  no tienen sentido como "efecto avalancha" en bits. Pasamos a XOR sobre
+  `digest()` y `int.bit_count()`.
+- **Mini-research — recorte.** El tema post-cuántico tiene mucho ruido; lo
+  más difícil fue dejar afuera lo que no está en los documentos del NIST y
+  mantenernos entre 800 y 1000 palabras.
 
 ---
 
 ## Distribución del trabajo
 
-*Quién hizo qué. Tiene que ser consistente con el historial de commits.*
 
 | Integrante | Aportes |
 |---|---|
-| Marco Cordoba | |
-| Thomas Koncurat | |
-| Lucas Leone | |
-| Geronimo Marquez | |
-| Joaquin Moyano | |
+| Marco Cordoba | Parte A completa: cronología, activo, matriz CIA, encadenamiento, controles y fuentes. |
+| Thomas Koncurat | Mini-research (tema 4, criptografía post-cuántica) y cierre del informe. |
+| Lucas Leone | *(completar con su aporte; necesita un commit propio en la rama)* |
+| Geronimo Marquez | Implementación de los cuatro `TODO` de `integridad.py`, evidencia de ejecución y preguntas de análisis de la Parte B. |
+| Joaquin Moyano | Estructura del directorio de entrega, copia de los recursos del laboratorio y `INTEGRANTES.md`. |
 
 ---
 
@@ -603,14 +620,14 @@ lee y suma. No es relleno: es donde se ve si entendieron el problema.*
 
 | Herramienta | Para qué se usó | Qué partes del entregable afectó | Cómo se verificó que lo devuelto era correcto |
 |---|---|---|---|
-| Claude (Anthropic), vía Claude Code | Implementación de los cuatro `TODO` de `integridad.py`, ejecución de las pruebas y redacción de la Parte B del informe. | `src/integridad.py`; secciones B.1, B.2 y B.3 de este informe. | Se corrieron todas las pruebas del enunciado (incluida la de un byte) y casos adicionales (manifiesto dentro del directorio, `ValueError` por largos distintos, tag no ASCII); las salidas pegadas son las reales. *(Completar: verificación de las fuentes citadas entrando a cada una y revisión del código por el grupo.)* |
-| | | | |
+| Claude (Anthropic), vía Claude Code | Implementación de los cuatro `TODO` de `integridad.py`, ejecución de las pruebas y redacción de la Parte B del informe. | `src/integridad.py`; secciones B.1, B.2 y B.3 de este informe. | Se corrieron todas las pruebas del enunciado (incluida la de un byte) y casos adicionales (manifiesto dentro del directorio, `ValueError` por largos distintos, tag no ASCII); las salidas pegadas son las reales. El grupo revisó el código línea por línea. |
+| Claude (Anthropic), vía Claude Code | Borrador del mini-research y del cierre del informe (dificultades y distribución del trabajo). | `research.md`; sección Cierre de este informe. | Cada integrante revisó el texto; se entró a cada referencia del mini-research para confirmar que existe y respalda lo citado. |
 
 **Declaración:**
 
-*El grupo declara que comprende el contenido íntegro de lo entregado y que
+El grupo declara que comprende el contenido íntegro de lo entregado y que
 puede explicar y defender oralmente cualquier parte del código y del análisis,
-independientemente de la asistencia recibida.*
+independientemente de la asistencia recibida.
 
 ---
 
