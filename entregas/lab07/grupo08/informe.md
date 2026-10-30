@@ -10,12 +10,15 @@
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Ejecución de los dos ataques de SQL injection (R1 bypass de login, R2 extracción con UNION) contra el target; borrador de la redacción de esas filas de la tabla de explotación y de P1 y P2. | `informe.md`: filas de SQLi auth y SQLi UNION de la tabla, sus evidencias, P1 y P2. | Las salidas pegadas en la sección 2 son las reales de la terminal. Las flags se validaron con `./ctf submit 07`. No se leyó el código del target (`server.py`) ni ningún `solucion.md`: la consulta subyacente se dedujo desde afuera, a partir de los mensajes de error SQL que devuelve el propio servidor. |
 | Claude (Anthropic), vía Claude Code | Ejecución de las pruebas de la Parte 2 (R3 command injection, R4 path traversal, R5 IDOR) contra el target; redacción de las filas R3–R5 de la tabla, evidencias 2.3–2.5, respuestas P3–P5 y research.md. | `informe.md` (filas R3, R4, R5, secciones 2.3–2.5, P3–P5, bitácora) y `research.md`. | Las salidas pegadas son las reales de la terminal. Todas las flags se validaron contra el sistema de evaluación (`./ctf submit 07`). El grupo revisó y comprende técnicamente el 100% de los análisis y defensas propuestas. |
+| Claude (Anthropic), vía Claude Code | **Parte 3 — validación.** Correr los 5 exploits (R1–R5) contra el entorno **Docker oficial** de la cátedra (`make lab N=07`) desde la consola atacante, capturar la evidencia real y el `./ctf status 07`, y corregir los scripts de explotación (CRLF→LF) para que ejecuten dentro del contenedor Linux. | `evidencia/` (nueva), `exploits/run-all.sh` y `.gitattributes` (nuevos); nota de Docker en la §4 y hallazgo de RCE-como-root en la §2.3. | Las salidas de `evidencia/exploits-docker.txt` son las reales de la consola atacante (`cyberlab-attacker`) contra `http://phantomcorp`. Las 5 flags se re-validaron con `./ctf submit 07` → `5/5` (ver `evidencia/ctf-status-07.txt`). |
 
 El grupo declara que comprende el contenido íntegro de lo entregado y que puede explicar y defender oralmente cualquier parte del análisis.
 
 ---
 
 ## 1. Flags capturadas
+
+> Captura textual de `./ctf status 07` ejecutado contra el entorno **Docker oficial** de la cátedra, luego de entregar las 5 flags con `./ctf submit 07`. Copia literal en [`evidencia/ctf-status-07.txt`](evidencia/ctf-status-07.txt).
 
 ```
   ╭────────────────────────────────────────────────────────────╮
@@ -146,7 +149,9 @@ rtt min/avg/max/mdev = 0.038/0.038/0.038/0.000 ms
 FLAG{command_injection_rce}
 ```
 
-El servidor ejecuta el ping y随后 concatena la salida del `cat`, revelando la flag `FLAG{command_injection_rce}`.
+El servidor ejecuta el ping y luego concatena la salida del `cat`, revelando la flag `FLAG{command_injection_rce}`.
+
+> **Validación en el Docker oficial (Parte 3).** Contra el target de la cátedra se confirmó algo aún más fuerte: el binario `ping` **no está instalado** en el contenedor, y la inyección **funciona igual** — el `;` ejecuta el segundo comando aunque el primero falle (`ping: not found`). Además, el proceso web corre como **`root`** (`uid=0`, verificado inyectando `host=127.0.0.1; id` → `uid=0(root) gid=0(root)`). El RCE de R3 es, por lo tanto, ejecución de comandos **como root** — máximo impacto. Evidencia: [`evidencia/exploits-docker.txt`](evidencia/exploits-docker.txt).
 
 ### 2.4 R4 — Path traversal / LFI
 
@@ -285,6 +290,16 @@ Cualquier restricción implementada en la interfaz de usuario (ocultar un enlace
 ```bash
 # Sin Docker en la máquina, el target se levantó en local (mismo server.py del contenedor):
 #   mkdir /c/app && cp server.py /c/app/ && (cd /c/app && python server.py)   # escucha en :80
+#
+# PARTE 3 (validación) — con Docker ya disponible, los 5 exploits se re-corrieron
+# contra el entorno OFICIAL de la cátedra, desde la consola atacante:
+#   make lab N=07                 # levanta phantomcorp + atacante (red cyberlab_labnet)
+#   make shell                    # entra a cyberlab-attacker
+#   ./exploits/run-all.sh         # los 5 de una (URL por defecto: http://phantomcorp)
+# Evidencia real: evidencia/exploits-docker.txt y evidencia/ctf-status-07.txt (5/5).
+# Hallazgos propios del target oficial: (1) no tiene 'ping' instalado y la inyección
+# de R3 funciona igual (el ';' corre el 2do comando aunque el 1ro falle); (2) el
+# proceso corre como root (uid=0), así que el RCE de R3 es ejecución como root.
 
 # ==============================================================================
 # PARTE 1 · SQL Injection (R1 y R2)
