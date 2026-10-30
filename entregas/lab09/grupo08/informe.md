@@ -9,6 +9,7 @@
 | Herramienta | Para qué se usó | Qué partes afectó | Cómo se verificó |
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Ejecución del agente (motor `mock`) contra el target capstone, captura del transcript y borrador de la auditoría (sección B) y de las flags. | `informe.md`: secciones 1, A y B (transcript, aciertos/errores y análisis del guardrail). | El transcript pegado es la corrida real del agente. Las 5 flags se validaron contra el evaluador con `./ctf submit 09` (progreso 5/5). El grupo revisó el loop de tool-use y el guardrail y comprende cada decisión del agente. |
+| Claude (Anthropic), vía Claude Code | **Parte 3 — validación y análisis.** Correr el agente entregado contra el entorno **Docker oficial** (`make lab N=09`, motor `mock`), capturar transcript auténtico y `./ctf status 09`; redactar las respuestas **P1–P5**; y escribir `research.md`. | `informe.md` (sección 2: P1–P5), `research.md` (nuevo) y `evidencia/` (nueva). | El transcript de `evidencia/agente-docker-transcript.txt` es la corrida real del agente en el contenedor `cyberlab-attacker` contra `phantomcorp`; las 5 flags se re-validaron con `./ctf submit 09` → `5/5` (ver `evidencia/ctf-status-09.txt`). Sin API key: motor `mock`. |
 
 > **Motor usado: `mock` (offline).** No se usó ninguna API key de LLM: el agente corrió con el motor `mock`, que recorre el objetivo de forma determinística. El loop de tool-use, las tools y el guardrail son **reales**; lo único simulado es el "razonamiento" (qué tool pedir en cada paso), que con `mock` viene de un plan fijo en vez de un LLM. Ninguna key se subió al repo.
 
@@ -17,6 +18,8 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 ---
 
 ## 1. Flags capturadas
+
+> `./ctf status 09` validado contra el entorno **Docker oficial** tras entregar las 5 flags con `./ctf submit 09`. Copia literal en [`evidencia/ctf-status-09.txt`](evidencia/ctf-status-09.txt); transcript completo de la corrida del agente en el contenedor, en [`evidencia/agente-docker-transcript.txt`](evidencia/agente-docker-transcript.txt).
 
 ```
   ╭────────────────────────────────────────────────────────────╮
@@ -149,20 +152,24 @@ Otros guardrails que le agregaríamos:
 
 **P1 — El loop de tool-use.**
 
-*(pendiente)*
+El loop de tool-use es el ciclo que vimos imprimir paso a paso en la corrida. En cada vuelta pasan cuatro cosas: (1) el **LLM decide** una acción — qué tool conviene correr ahora y con qué argumentos (en nuestra corrida con motor `mock` esa decisión viene de un plan fijo, pero la mecánica es idéntica a la de un LLM real); (2) nuestro **código ejecuta** esa tool a través del punto único `ejecutar_tool(nombre, argumentos)`, que *siempre* pasa por el guardrail de alcance antes de actuar; (3) le **devolvemos el resultado** al modelo como `[{"id": accion["id"], "output": salida}]` para que lo tenga en cuenta; y (4) **se repite** hasta que la acción sea de tipo `final` o hasta chocar con el tope `MAX_PASOS = 12`. Esos son exactamente los tres `TODO` que completamos en `agente_esqueleto.py`: la condición de corte, el despacho de la tool y la realimentación. En la corrida se ve claro en los pasos 6→7: el `GET /api/token` devolvió un token y en la vuelta siguiente el agente lo metió en el `POST /api/vault`. La salida de un paso fue la entrada del próximo: eso es el loop.
 
 **P2 — Qué aporta el LLM que un script fijo no, y qué hace mejor el script.**
 
-*(pendiente)*
+**Lo que aporta el LLM: decisión adaptativa.** Un script fijo como el `recolector.py` del Lab 08 ejecuta siempre la misma secuencia pre-programada; no reacciona a lo que encuentra. El LLM, en cambio, **lee un resultado y decide el paso siguiente según su contenido**. En la corrida esto se ve dos veces: leyó `Disallow: /vault-interno-x7` en el `robots.txt` y fue a esa ruta (pistas que no estaban previstas de antemano), y leyó "usá este token en `POST /api/vault`" y encadenó la llamada. Esa capacidad de improvisar sobre lo no previsto es lo que un script no hace solo.
+
+**Lo que hace mejor el script: todo lo demás.** Es **determinístico** (hace exactamente lo mismo siempre), **rápido y gratis** (no llama a una API ni cuesta tokens), **reproducible** (ideal para CI/tests — por eso existe el motor `mock`), **auditable** y **no alucina**: un script nunca va a "inventar" una vulnerabilidad que no existe. Regla práctica: LLM para razonamiento abierto y adaptación; script para tareas repetitivas y bien definidas.
 
 **P3 — Diseño agnóstico al proveedor.**
 
-*(pendiente)*
+El agente **no se acopla a un proveedor; se acopla a una interfaz**. Toda la lógica del loop depende solamente del contrato uniforme `crear_cliente(system, tools).paso(resultados)`, que devuelve una acción normalizada (`{"tipo": "tool", ...}` o `{"tipo": "final", ...}`). Detrás de esa misma interfaz, `llm.py` tiene tres implementaciones intercambiables (`ClienteClaude`, `ClienteOpenAI`, `ClienteMock`) y se elige con una sola variable de entorno (`LLM_PROVIDER`). La ventaja concreta es triple: (1) **probar sin key y offline** con `mock` —que es justo como validamos esta entrega, sin arriesgar filtrar una API key—; (2) **cambiar de proveedor** (Claude ↔ OpenAI) si uno sube de precio, cambia su API o se cae, sin tocar una línea del agente; y (3) **evitar el vendor lock-in**. Es el principio de inversión de dependencias: el código de alto nivel (el agente) no depende de los detalles (el SDK de un proveedor), sino de una abstracción que ambos cumplen.
 
 **P4 — Dos riesgos de un agente ofensivo autónomo y su guardrail.**
 
-*(pendiente)*
+**Riesgo 1 — Salirse de alcance.** Un agente que decide solo puede terminar escaneando o atacando un host que no está autorizado (un tercero visto en un resultado, una IP externa). Fuera del lab eso es un delito (Ley 26.388). *Guardrail:* una **allowlist de alcance validada en cada tool** (`_verificar_alcance` contra `ALCANCE = {"phantomcorp"}`), no en el prompt. En la corrida se ve en el paso 8: el agente pidió `nmap_scan` contra `8.8.8.8` y la tool lo **bloqueó antes de ejecutar nada**. Que esté en el código y no en el prompt es clave: a un LLM se lo puede convencer de ignorar una regla del prompt, pero no puede saltear un `if` en la función que ejecuta la acción.
+
+**Riesgo 2 — Loop descontrolado / martilleo del objetivo.** Un agente sin tope puede quedar en un bucle infinito, agotar recursos o golpear el target hasta tumbarlo (DoS) o disparar su detección. *Guardrail:* **límite de pasos** (`MAX_PASOS = 12`, ya presente) más **rate limiting** (tope de requests por minuto). Un tercer guardrail que agregaríamos es **human-in-the-loop**: que toda acción de escritura o impacto (`POST`, borrados) pida confirmación humana antes de ejecutarse.
 
 **P5 — Por qué los labs 05–08 a mano fueron requisito para este.**
 
-*(pendiente)*
+Porque **vos dirigís al agente, y no podés dirigir lo que no sabés hacer**. Haber hecho recon (05), enumeración (06), explotación (07) y post-explotación (08) a mano es lo que te permite: (1) **juzgar** si la decisión del agente fue la correcta —¿empezar con `nmap -sV` tenía sentido?, ¿se le escapó un puerto?—; (2) **validar** los hallazgos y no comerte una alucinación "con confianza", el riesgo que el propio lab advierte; (3) **diseñar las tools y los guardrails**: no se puede escribir una validación de alcance ni una tool para un ataque que no entendés; y (4) **recuperar** cuando el agente se traba o la app tiene una defensa rara. La corrida lo muestra: el `nmap_scan` del paso 1 falló (timeout) y el agente **siguió como si nada**, sin notar que el barrido de puertos quedó incompleto. Solo un humano que sabe hacer recon se da cuenta de ese agujero. Si no supieras pentesting no podrías distinguir un agente que trabaja bien de uno que hace cualquier cosa con cara de seguridad. Como dice la regla del lab: un agente no te exime de saber, **te exige saber más**.
