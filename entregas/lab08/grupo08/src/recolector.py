@@ -44,14 +44,20 @@ def buscar_flag(base: str, desde: int, hasta: int) -> tuple[int, str] | None:
     """Recorre los legajos [desde, hasta] y devuelve (id, flag) del que tenga el
     flag, o None si no aparece.
 
-    TODO: implementá el recorrido.
-      - Para cada id, usá consultar_legajo().
-      - El legajo con el flag trae una clave distinta a los normales
-        (los normales tienen 'nombre' y 'area'). Detectala.
-      - Apenas lo encuentres, devolvé (id, flag) y cortá: no sigas de gusto.
+    Los legajos normales traen las claves 'nombre' y 'area'. El que esconde el
+    flag NO tiene 'area': trae una clave distinta cuyo valor es 'FLAG{...}'.
+    Apenas lo encontramos, devolvemos (id, flag) y cortamos.
     """
-    # TODO: completá esto.
-    raise NotImplementedError("Completá buscar_flag()")
+    for id_ in range(desde, hasta + 1):
+        datos = consultar_legajo(base, id_)
+        if not datos:
+            continue
+        # Un legajo normal tiene 'nombre' + 'area'. El anómalo rompe ese molde:
+        # buscamos cualquier valor que luzca como una flag en sus campos.
+        for clave, valor in datos.items():
+            if isinstance(valor, str) and valor.startswith("FLAG{"):
+                return id_, valor
+    return None
 
 
 def main() -> int:

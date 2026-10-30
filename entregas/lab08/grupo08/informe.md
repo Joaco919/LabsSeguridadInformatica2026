@@ -10,6 +10,7 @@
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Asistencia en la exploración del host víctima (`situational awareness`), análisis de notas de deploy y loot de credenciales de la Parte 1; borrador de la redacción de las secciones correspondientes de la tabla, evidencias 2.1 y 2.2, y respuesta P3. | `informe.md`: filas de Recon del host y Loot de la tabla, secciones 2.1 y 2.2, respuesta P3 y bitácora de la Parte 1. | Las salidas pegadas en la sección 2 corresponden a la terminal del host comprometido. Las flags capturadas se validaron contra el evaluador del laboratorio con `./ctf submit 08`. El grupo revisó técnicamente el contenido y comprende las implicancias operativas y defensivas del análisis. |
 | Claude (Anthropic), vía Claude Code | Asistencia en la Parte 2: enumeración de binarios SUID y explotación (GTFOBins) del R3, y pivoting a la red interna segmentada del R4; borrador de la redacción de esas secciones, evidencias y preguntas de análisis. | `informe.md`: filas de Privesc y Pivoting de la tabla, secciones 2.3 y 2.4, respuestas P1, P2 y P5, y bloque de la Parte 2 en la bitácora; ampliación de `scripts/recon_loot.sh` con los pasos de R3/R4. | Las salidas pegadas corresponden a la ejecución real del entorno (`./ctf lab 08`, `docker exec`). Las flags `FLAG{privesc_suid_root}` y `FLAG{pivot_internal_host}` se validaron contra el evaluador con `./ctf submit 08 R3/R4` (progreso 4/5). El grupo revisó técnicamente el contenido y comprende las implicancias operativas y defensivas. |
+| Claude (Anthropic), vía Claude Code | Asistencia en la Parte 3: implementación de la función `buscar_flag()` de `src/recolector.py` (enumeración de los 250 legajos del host interno) y ejecución del R5; borrador de la redacción de la sección de automatización y de P4. | `informe.md`: sección 3 (Automatización) y respuesta P4; función `buscar_flag()` de `src/recolector.py`. | La salida pegada en la sección 3 es la ejecución real del script contra el host interno. La flag `FLAG{automation_pays_off}` se validó contra el evaluador con `./ctf submit 08 R5`. El grupo revisó técnicamente el contenido y comprende la lógica del script y sus implicancias. |
 
 El grupo declara que comprende el contenido íntegro de lo entregado y que puede explicar y defender oralmente cualquier parte del análisis.
 
@@ -26,9 +27,9 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
    ✓  R2     Loot de credenciales
    ✓  R3     Escalada de privilegios (SUID)
    ✓  R4     Pivoting al host interno
-   ·  R5     Automatizacion (fuerza bruta de legajos)
+   ✓  R5     Automatizacion (fuerza bruta de legajos)
 
-  ████████████████████████░░░░░░  4/5 (80%)
+  ██████████████████████████████  5/5 (100%)
 ```
 
 ---
@@ -41,6 +42,7 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 | Loot de credenciales (R2) | Búsqueda de secretos estáticos de aplicación en archivos de configuración (`.env`) y lectura del historial de comandos del usuario (`~/.bash_history`). | `cat /var/www/.env` y `cat /home/operador/.bash_history`. | Archivo `.env` exponiendo base de datos interna (`DB_HOST=phantomcorp-db`, `DB_USER=phantom_app`, contraseña `Ph@ntom-DB-2024`) y `APP_SECRET=FLAG{loot_credentials_found}`. El historial confirmó acceso previo a `http://phantomcorp-db/`. | **Gestión centralizada de secretos**. No guardar credenciales en archivos planos en el filesystem. Usar un gestor de secretos (HashiCorp Vault, AWS Secrets Manager) que inyecte secretos efímeros en memoria en tiempo de ejecución. Restringir permisos (`chmod 600`) y deshabilitar o sanitizar `HISTFILE`. |
 | Privesc (SUID) (R3) | Enumeración de binarios con bit SUID y explotación de una copia SUID de `bash` (`system-check`) para obtener contexto de `root` y leer `/root/flag.txt`. | `find / -perm -4000 -type f 2>/dev/null` y `/usr/local/bin/system-check -p -c 'cat /root/flag.txt'` (técnica GTFOBins). | Binario no estándar `-rwsr-xr-x root root /usr/local/bin/system-check` (copia de bash). Con `-p` el shell mantiene `euid=0(root)` → lectura de `/root/flag.txt` = `FLAG{privesc_suid_root}`. | **Eliminar el SUID innecesario y endurecer el host**. Quitar el bit (`chmod u-s`), auditar periódicamente (`find / -perm -4000`), montar particiones con `nosuid`, y aplicar MAC (AppArmor/SELinux) para que ningún shell herede privilegios de root. |
 | Pivoting (R4) | Uso del host comprometido como trampolín hacia la red interna segmentada (`internalnet`) para alcanzar `phantomcorp-db`, invisible desde la consola del atacante. | `ip -br a` (dos interfaces), `curl -s http://phantomcorp-db/` desde la víctima. Contraste: el mismo `curl` desde el atacante falla. | La víctima tiene doble interfaz (`eth0 192.168.97.3` labnet, `eth1 192.168.117.3` internalnet). El atacante (solo labnet) no tiene ruta al db; desde la víctima la respuesta trae `FLAG{pivot_internal_host}`. | **Microsegmentación y mínimo privilegio de red**. No conectar hosts expuestos a redes internas sensibles; aplicar firewall por host/NSG con reglas de egreso explícitas, VLANs separadas y políticas *zero-trust* que no asuman confianza por estar dentro de la LAN. |
+| Automatización (R5) | Enumeración de los 250 legajos de `/empleado?id=N` del host interno con un script propio (`recolector.py`) que detecta el registro anómalo y corta al encontrarlo. | `python3 recolector.py --base http://phantomcorp-db --desde 1 --hasta 250` (stdlib `urllib`). | El legajo `id=187` es una `cuenta-servicio` que, en vez del campo `area`, trae `legajo_oculto` con `FLAG{automation_pays_off}`. A mano (250 requests) era inviable; el script lo resuelve en segundos. | **Rate limiting y detección de enumeración**. La API debe limitar peticiones por origen, exigir autenticación y autorización por objeto (no servir cualquier `id`), y alertar ante accesos secuenciales masivos desde un host que no debería iterar legajos. |
 
 ### 2.1 R1 — Reconocimiento del host comprometido
 
@@ -214,7 +216,32 @@ La respuesta del servicio interno entrega `FLAG{pivot_internal_host}` y confirma
 
 ## 3. Automatización
 
-*(pendiente — parte del compañero que complete `src/recolector.py` y ejecute R5 en la Parte 2)*
+El R5 pide encontrar, entre **250 legajos** del host interno (`/empleado?id=N`), el único que esconde un flag. A mano son 250 requests: inviable. La tarea se convierte en una **herramienta** completando `src/recolector.py`, que usa solo la biblioteca estándar (`urllib`) para poder correr dentro del host comprometido sin instalar nada.
+
+La lógica que implementamos en `buscar_flag()`:
+
+1. Recorre el rango `[desde, hasta]` y pide cada `/empleado?id=N` con la función `consultar_legajo()` (ya provista como referencia). Un `404` (legajo inexistente) se ignora.
+2. Un legajo **normal** trae las claves `nombre` y `area`. El que esconde el flag **rompe ese molde**: en lugar de `area` trae otra clave cuyo valor empieza con `FLAG{`. En vez de hardcodear el nombre exacto de esa clave, el script recorre los campos del registro y se queda con cualquier valor string que luzca como una flag. Así funciona aunque la clave anómala cambie de nombre.
+3. **Apenas** lo encuentra, devuelve `(id, flag)` y corta: no sigue iterando de gusto.
+
+Ejecución real contra el host interno:
+
+```
+$ python3 recolector.py --base http://phantomcorp-db --desde 1 --hasta 250
+[*] Enumerando legajos 1..250 en http://phantomcorp-db
+[+] Flag en el legajo id=187: FLAG{automation_pays_off}
+```
+
+El registro anómalo, confirmado a mano:
+
+```
+$ curl -s http://phantomcorp-db/empleado?id=187
+{"id": 187, "nombre": "cuenta-servicio", "legajo_oculto": "FLAG{automation_pays_off}"}
+```
+
+El legajo 187 no es una persona sino una `cuenta-servicio`, y en vez de `area` trae el campo `legajo_oculto` con `FLAG{automation_pays_off}`. Eso es exactamente lo que el script detecta sin saberlo de antemano.
+
+> **El puente hacia el Lab 09.** Este script es automatización, no agente: *nosotros* definimos la lógica (qué rango, cómo detectar lo anómalo, cuándo cortar) y la máquina solo repite. Un agente del Lab 09 tomaría esas decisiones por su cuenta. Encadenando los labs anteriores, el pipeline completo sería: recon (Lab 05) → enumeración de la superficie web (Lab 06) → explotación del RCE/SQLi (Lab 07) → post-explotación: loot del `.env`, privesc por SUID, pivot al db y enumeración automatizada de legajos (este lab). Cada etapa alimenta a la siguiente; el agente orquestaría ese encadenamiento.
 
 ---
 
@@ -249,7 +276,14 @@ El hallazgo de secretos en texto claro dentro de `/var/www/.env` y en `~/.bash_h
 
 **P4 — Qué decidiste vos que el script no decide solo.**
 
-*(pendiente — parte del compañero que realice R5 en la Parte 2)*
+El script automatizó la **repetición** (250 requests), pero cada **decisión** la tomamos nosotros antes de correrlo; el script no las razona:
+
+1. **Qué enumerar y en qué rango.** Decidimos atacar `/empleado?id=N` y que el espacio era `1..250`. Eso salió de interpretar la pista y la respuesta del host, no del script. Si el rango fuera otro, el script no se da cuenta solo.
+2. **Cómo reconocer el objetivo.** Definimos el criterio de "registro anómalo": un legajo normal tiene `nombre` + `area`, y el que buscamos trae un valor con forma de flag en otro campo. El script no sabe qué es "interesante"; aplica la regla que le dimos. Esa heurística es nuestra.
+3. **Cuándo parar.** Decidimos cortar al primer hallazgo en vez de barrer los 250 enteros (eficiencia y menos ruido). También fijamos el `timeout` y qué hacer ante un error o un 404 (ignorar y seguir).
+4. **El encuadre ético/legal.** Correr esto solo contra el target de la cátedra, no contra un sistema ajeno, es una decisión humana que ninguna herramienta toma por nosotros.
+
+Esto es justo lo que separa un **script** de un **agente** (Lab 09): el script ejecuta una lógica fija que ya pensamos; un agente tomaría varias de estas decisiones por su cuenta (qué endpoint probar, cómo reconocer lo valioso, cuándo frenar). Por eso un agente ofensivo es más potente y también más peligroso: hay decisiones —sobre todo el alcance y lo ético— que **no** deberían delegarse.
 
 **P5 — Defensa para SUID y para pivoting.**
 
@@ -308,11 +342,20 @@ ip -br a                                             # eth0 192.168.97.3 (labnet
 curl -s http://phantomcorp-db/                      # pivot OK -> FLAG{pivot_internal_host}
 
 # ==============================================================================
+# PARTE 3 · Automatización (R5)
+# ==============================================================================
+
+# 5. Enumeración automatizada de legajos con el script propio (desde la victima)
+python3 src/recolector.py --base http://phantomcorp-db --desde 1 --hasta 250   # -> id=187 FLAG{automation_pays_off}
+curl -s http://phantomcorp-db/empleado?id=187        # confirma el registro anomalo (cuenta-servicio / legajo_oculto)
+
+# ==============================================================================
 # Validación de flags capturadas desde la raíz del repositorio
 # ==============================================================================
 ./ctf submit 08 R1 'FLAG{post_situational_awareness}'
 ./ctf submit 08 R2 'FLAG{loot_credentials_found}'
 ./ctf submit 08 R3 'FLAG{privesc_suid_root}'
 ./ctf submit 08 R4 'FLAG{pivot_internal_host}'
-./ctf status 08                                     # Progreso: 4/5 (80%)
+./ctf submit 08 R5 'FLAG{automation_pays_off}'
+./ctf status 08                                     # Progreso: 5/5 (100%)
 ```
