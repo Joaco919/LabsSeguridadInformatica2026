@@ -9,7 +9,8 @@
 | Herramienta | Para qué se usó | Qué partes afectó | Cómo se verificó |
 |---|---|---|---|
 | Claude (Anthropic), vía Claude Code | Ejecución de la enumeración de directorios y de los `curl` de confirmación contra el target; borrador de la redacción del inventario (R1, R2) y de P1–P2. | `informe.md`: filas de `/backup`, `/admin` y `/.git/config` del inventario, sus evidencias, P1, P2 y la bitácora correspondiente. | Las salidas pegadas en la sección 2 son las reales de la terminal. Las flags se validaron con `./ctf submit 06`. No se leyó el código del target (`server.py`) ni ningún `solucion.md`: todo salió de enumerar el servicio desde afuera. |
-| Claude (Anthropic), vía Claude Code | Ejecución de la enumeración de la parte 2 (`OPTIONS`, API y fingerprinting) contra el target y borrador de R3, R4 y P3–P5. | `informe.md`: filas de métodos HTTP, API de usuarios y fingerprint del inventario; secciones 2.4–2.6; P3, P4, P5 y la bitácora de la parte 2. | Las salidas pegadas son las reales de la terminal. R3 y R4 se validaron por `sha256` contra `retos.manifest`. No se leyó `server.py` ni ningún `solucion.md`: todo salió de enumerar el servicio desde afuera. R5 quedó pendiente justamente por no forzar esa regla. |
+| Claude (Anthropic), vía Claude Code | Ejecución de la enumeración de la parte 2 (`OPTIONS`, API y fingerprinting) contra el target y borrador de R3, R4 y P3–P5. | `informe.md`: filas de métodos HTTP, API de usuarios y fingerprint del inventario; secciones 2.4–2.6; P3, P4, P5 y la bitácora de la parte 2. | Las salidas pegadas son las reales de la terminal. R3 y R4 se validaron por `sha256` contra `retos.manifest`. No se leyó `server.py` ni ningún `solucion.md`: todo salió de enumerar el servicio desde afuera. En esta parte R5 quedó a medias (sin `whatweb` local); se cerró en la fila siguiente. |
+| Claude (Anthropic), vía Claude Code | Cierre de R5: levantar el entorno del lab, correr `whatweb` desde la consola del atacante, buscar el archivo default de PhantomCMS y redactar la fila de R5, la sección 2.6 y la bitácora. | `informe.md`: fila de fingerprint del inventario, sección 2.6, bloque de progreso y bitácora de R5. | Las salidas pegadas son las reales de la terminal, corridas contra `phantomcorp` desde `cyberlab-attacker`. R5 se validó con `./ctf submit 06 R5`. No se leyó `server.py` ni ningún `solucion.md`: la ruta se halló probando nombres derivados del producto (`PhantomCMS`) con `dirb`. |
 
 El grupo declara que comprende el contenido íntegro de lo entregado y que puede explicar y defender oralmente cualquier parte del análisis.
 
@@ -26,9 +27,9 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
    ✓  R2     Repositorio Git expuesto
    ✓  R3     Metodos HTTP peligrosos habilitados
    ✓  R4     Enumeracion de usuarios via API
-   ·  R5     Fingerprinting de tecnologia  (pendiente)
+   ✓  R5     Fingerprinting de tecnologia
 
-  ████████████████████████░░░░░░  4/5 (80%)
+  ██████████████████████████████  5/5 (100%)
 ```
 
 ---
@@ -42,7 +43,7 @@ El grupo declara que comprende el contenido íntegro de lo entregado y que puede
 | Repositorio Git expuesto por HTTP | `GET /.git/config` | Fuerza bruta de rutas (`.git/config` en la wordlist) + `curl` | `+ http://127.0.0.1/.git/config (CODE:200\|SIZE:209)` y su contenido: `[remote "origin"] url = https://git.internal.phantomcorp/intranet.git` (ver 2.3) | **Alto.** El archivo de configuración de git se sirve como texto plano. Filtra el nombre de un host interno (`git.internal.phantomcorp`) y el nombre del repositorio de la intranet. Que `/.git/config` sea accesible indica que el directorio `.git` quedó desplegado en el docroot (CWE-527). | Reconocimiento de infraestructura interna (un servidor git que no estaba en el mapa del Lab 05) y la base para intentar reconstruir el código con `git-dumper` si se encuentran más objetos del repo. Con el código: credenciales commiteadas, endpoints ocultos y la lógica del login de `/admin`. |
 | Métodos HTTP de escritura habilitados | `OPTIONS /` → `Allow: GET, POST, PUT, DELETE, OPTIONS` | `curl -X OPTIONS` + lectura del header `Allow` | `Allow: GET, POST, PUT, DELETE, OPTIONS` y header `X-Dangerous-Methods` en la respuesta (ver 2.4) | **Alto.** `PUT` y `DELETE` habilitados a nivel servidor. `PUT` permite escribir archivos arbitrarios en el docroot sin autenticación; `DELETE`, borrarlos. Es CWE-650 (*Trusting HTTP Permission Methods on the Server Side*). | Subida directa de un webshell con `PUT /shell.php` y ejecución pidiéndolo por HTTP → ejecución remota de código. Uno de los caminos más directos a RCE para el Lab 07. |
 | API interna de usuarios sin autenticación | `GET /api/users` | Enumeración de rutas de API + `curl` | JSON con `admin` (superuser), `jperez` (editor), `mgomez` (viewer) y la nota `endpoint interno de RRHH - no exponer` (ver 2.5) | **Alto.** Expone usuarios válidos y su rol sin pedir credenciales (CWE-200). Confirma que `admin` existe y es superusuario. | La lista de usuarios válidos para el ataque de credenciales contra `/admin`: elimina la fase de adivinar nombres y prioriza `admin` (superuser). Se combina con contraseñas del backup o del `.git`. |
-| Fingerprint del stack (CMS y versión) | `GET /` (headers + `<meta generator>`) | Fingerprinting (`whatweb` / lectura de headers) | `Server: PhantomServer/3.7`, `X-Powered-By: PhantomCMS/3.7` y `<meta name="generator" content="PhantomCMS 3.7">` (ver 2.6) | **Medio.** Revela producto y versión exactos (CWE-200). Con producto+versión se buscan CVEs y los archivos default conocidos del CMS. | Clasificación de vulnerabilidades por versión (estilo Lab 05) y enumeración dirigida al archivo default de PhantomCMS 3.7. **R5 pendiente:** falta pedir ese archivo default (requiere `whatweb -a 3` en la consola del lab); lo cierra otro integrante. |
+| Fingerprint del stack (CMS y versión) y archivo default | `GET /` (headers + `<meta generator>`) y `GET /phantomcms/VERSION` | Fingerprinting con `whatweb -a 3` + `dirb` con wordlist derivada del producto + `curl` | `whatweb`: `HTTPServer[PhantomServer/3.7]`, `MetaGenerator[PhantomCMS 3.7]`, `X-Powered-By[PhantomCMS/3.7]`; y `/phantomcms/VERSION` → `PhantomCMS 3.7 (build 2024-11)` (ver 2.6) | **Medio.** Revela producto, versión y fecha de build exactos (CWE-200), y el archivo default `VERSION` queda accesible sin autenticación. Con producto+versión se buscan CVEs y se dirige la enumeración a los archivos conocidos del CMS. | Clasificación de vulnerabilidades por versión (estilo Lab 05) y enumeración dirigida: ya sabemos que existe el directorio `/phantomcms/`, donde buscar config, instalador o paneles default del CMS. |
 
 ### 2.1 Enumeración de directorios
 
@@ -144,18 +145,35 @@ X-Powered-By: PhantomCMS/3.7
 
 Tres usuarios válidos con su rol, servidos sin pedir autenticación. `admin` es `superuser`.
 
-### 2.6 Fingerprinting del stack (R5 — parcial)
+### 2.6 Fingerprinting del stack (R5)
+
+Contra el target real, desde la consola del atacante (`make shell`):
 
 ```
-$ curl -si http://127.0.0.1/
+$ whatweb -a 3 http://phantomcorp
+http://phantomcorp [200 OK] Country[RESERVED][ZZ], HTML5, HTTPServer[PhantomServer/3.7],
+IP[192.168.97.2], MetaGenerator[PhantomCMS 3.7], Title[Intranet PhantomCorp],
+X-Powered-By[PhantomCMS/3.7]
+```
+
+Tres fuentes coinciden (`Server`, `X-Powered-By` y `<meta generator>`) → **PhantomCMS 3.7**. `whatweb` no lista el archivo default, así que con el producto identificado se armó una wordlist chica con nombres derivados de él (`phantomcms`, `phantom`, `pcms`, `VERSION`, `README`, `CHANGELOG`, `config.php`, etc., con y sin el prefijo `phantomcms/`). `common.txt` y `big.txt` de `dirb` no lo encuentran: hay que usar el nombre del producto. Una sola ruta respondió:
+
+```
+$ dirb http://phantomcorp /tmp/w.txt -S -r
++ http://phantomcorp/phantomcms/VERSION (CODE:200|SIZE:132)
+
+$ curl -si http://phantomcorp/phantomcms/VERSION
 HTTP/1.0 200 OK
 Server: PhantomServer/3.7
+Content-Type: text/plain; charset=utf-8
 X-Powered-By: PhantomCMS/3.7
-...
-<meta name="generator" content="PhantomCMS 3.7">
+
+PhantomCMS 3.7 (build 2024-11)
+Archivo default del CMS. Si llegaste aca por fingerprinting, bien.
+FLAG{tech_fingerprint_phantomcms}
 ```
 
-Tres fuentes coinciden: `Server`, `X-Powered-By` y el `<meta generator>` → **PhantomCMS 3.7**. Con el producto y la versión ya identificados, el paso que falta de R5 es pedir el **archivo default** del CMS (lo que `whatweb -a 3 http://phantomcorp` revela en la consola del lab). Sin `whatweb` en nuestra máquina, la ruta de ese archivo no resultó adivinable a ciegas, así que ese último paso queda **pendiente** para el integrante con acceso a la consola del lab. El fingerprint en sí ya está hecho.
+Lectura: el fingerprint da producto y versión; el archivo default `VERSION` lo confirma y suma la fecha de build. Es la lección del lab: **fingerprint → archivos default del producto**, no fuerza bruta a ciegas.
 
 ---
 
@@ -236,13 +254,15 @@ curl -s -X OPTIONS -i http://127.0.0.1/                # Allow: GET, POST, PUT, 
 curl -si http://127.0.0.1/api                          # 404
 curl -si http://127.0.0.1/api/users                    # 200 — lista usuarios + rol
 
-# R5 (parcial) — fingerprinting del stack
-curl -si http://127.0.0.1/ | grep -iE 'server:|x-powered-by:|generator'   # PhantomCMS 3.7
-# Falta: pedir el archivo default del CMS (whatweb -a 3 http://phantomcorp) — pendiente
+# R5 — fingerprinting del stack (desde la consola del atacante, make shell)
+whatweb -a 3 http://phantomcorp                        # PhantomCMS 3.7
+dirb http://phantomcorp /tmp/w.txt -S -r               # wordlist con nombres derivados del producto
+curl -si http://phantomcorp/phantomcms/VERSION         # 200 — archivo default del CMS
 
 ./ctf submit 06 R1 'FLAG{dir_enumeration_backup}'
 ./ctf submit 06 R2 'FLAG{git_repo_exposed}'
 ./ctf submit 06 R3 'FLAG{http_methods_put_enabled}'
 ./ctf submit 06 R4 'FLAG{user_enumeration_api}'
+./ctf submit 06 R5 'FLAG{tech_fingerprint_phantomcms}'
 ./ctf status 06
 ```
